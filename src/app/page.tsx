@@ -1,11 +1,13 @@
 'use client';
 
 import { useRef, useState, useEffect, useCallback } from 'react';
-import { GRID_LAYOUTS, FILTER_OPTIONS, GLOW_COLORS, COUNTDOWN_OPTIONS } from '@/data';
-import type { GridLayout, FilterOption, GlowColor, CapturedPhoto, ActivePanel } from '@/types';
+import { GRID_LAYOUTS, FILTER_OPTIONS, GLOW_COLORS, COUNTDOWN_OPTIONS, FRAME_COLORS, BORDER_STYLES } from '@/data';
+import type { GridLayout, FilterOption, GlowColor, CapturedPhoto, ActivePanel, FrameColor, BorderStyle, StickerCategory } from '@/types';
 import GridPanel from '@/GridPanel';
 import FilterPanel from '@/FilterPanel';
 import BersinarPanel from '@/BersinarPanel';
+import BingkaiPanel from '@/BingkaiPanel';
+import DekorasiPanel from '@/DekorasiPanel';
 import ResultPanel from '@/ResultPanel';
 
 function coverCrop(vW: number, vH: number, dW: number, dH: number): [number, number, number, number] {
@@ -37,6 +39,17 @@ const IcoCamera = () => (
   <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
     <path d="M4.8 4.8C4.4 5.5 3.7 5.9 2.9 6L1 6.4C.4 6.5 0 7.2 0 7.8V15c0 .8.7 1.5 1.5 1.5h17c.8 0 1.5-.7 1.5-1.5V7.8c0-.7-.4-1.3-1-1.4L17.2 6c-.8-.1-1.5-.5-1.9-1.2l-.9-1.5C14 2.5 13.3 2.2 12.6 2.1 12 2 11.5 2 11 2S9 2 8.4 2.1C7.7 2.2 7 2.5 6.6 3.3L4.8 4.8z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
     <circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.4" />
+  </svg>
+);
+const IcoBingkai = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+    <rect x="3" y="3" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.6" />
+    <path d="M3 7h14M3 13h14" stroke="currentColor" strokeWidth="1.6" opacity="0.4" />
+  </svg>
+);
+const IcoDekorasi = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+    <path d="M10 2L12.5 7.5L18 8L14 12L15 18L10 15.5L5 18L6 12L2 8L7.5 7.5L10 2Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
   </svg>
 );
 
@@ -76,8 +89,17 @@ export default function PhotoBoothPage() {
   const [glow, setGlow] = useState<GlowColor>(GLOW_COLORS[0]);
   const [sessions, setSessions] = useState(3);
   const [glowInt, setGlowInt] = useState(60);
+  const [frame, setFrame] = useState<FrameColor>(FRAME_COLORS[1]);
+  const [customFrame, setCustomFrame] = useState('#ffffff');
+  const [border, setBorder] = useState<BorderStyle>(BORDER_STYLES[1]);
+  const [decorCat, setDecorCat] = useState<StickerCategory | null>(null);
+  const [tileLevel, setTileLevel] = useState(3);
+  const [patOpacity, setPatOpacity] = useState(45);
+  const [showCorners, setShowCorners] = useState(true);
+  const [shape, setShape] = useState<string>('rect');
+  const [borderThick, setBorderThick] = useState(50);
   const [timer, setTimer] = useState<3 | 5 | 10>(3);
-  const [panel, setPanel] = useState<ActivePanel>(null);
+  const [panel, setPanel] = useState<ActivePanel | 'bingkai' | 'dekorasi'>(null);
   const [camReady, setCamReady] = useState(false);
   const [camErr, setCamErr] = useState<string | null>(null);
   const [capturing, setCapturing] = useState(false);
@@ -95,7 +117,7 @@ export default function PhotoBoothPage() {
         const vid = videoRef.current;
         if (vid) {
           vid.srcObject = s;
-          vid.play().catch(() => {});
+          vid.play().catch(() => { });
           vid.onloadedmetadata = () => { if (alive) setCamReady(true); };
         }
       })
@@ -111,7 +133,7 @@ export default function PhotoBoothPage() {
     if (phase === 'capture' && streamRef.current && videoRef.current) {
       if (videoRef.current.srcObject !== streamRef.current) {
         videoRef.current.srcObject = streamRef.current;
-        videoRef.current.play().catch(() => {});
+        videoRef.current.play().catch(() => { });
       }
     }
   }, [phase]);
@@ -158,7 +180,7 @@ export default function PhotoBoothPage() {
     if (capturing || !camReady) return;
     setCapturing(true);
     setPhotos([]);
-    
+
     const totalPhotos = sessions * grid.photoCount;
     for (let i = 0; i < totalPhotos; i++) {
       if (i > 0 && i % grid.photoCount === 0) {
@@ -169,7 +191,7 @@ export default function PhotoBoothPage() {
       setCountVal(null);
       flash();
       setPhotos(prev => [...prev, captureFrame()]);
-      
+
       // Jeda di sela tangkapan dalam 1 sesi (tidak berlaku jika memutus sesi)
       if (i < totalPhotos - 1 && (i + 1) % grid.photoCount !== 0) {
         await new Promise(r => setTimeout(r, 500));
@@ -179,16 +201,33 @@ export default function PhotoBoothPage() {
     setTimeout(() => setPhase('result'), 250);
   }, [capturing, camReady, grid.photoCount, timer, captureFrame, sessions]);
 
-  const togglePanel = (p: ActivePanel) => setPanel(prev => prev === p ? null : p);
+  const togglePanel = (p: ActivePanel | 'bingkai' | 'dekorasi') => setPanel(prev => prev === p ? null : p);
 
   const tools = [
     { id: 'grid' as const, icon: <IcoGrid />, label: 'Kisi' },
     { id: 'filter' as const, icon: <IcoFilter />, label: 'Filter' },
     { id: 'glow' as const, icon: <IcoGlow />, label: 'Cahaya' },
+    { id: 'bingkai' as const, icon: <IcoBingkai />, label: 'Bingkai' },
+    { id: 'dekorasi' as const, icon: <IcoDekorasi />, label: 'Dekorasi' },
   ];
 
   if (phase === 'result') {
-    return <ResultPanel capturedPhotos={photos} selectedGrid={grid} onRetake={() => { setPhotos([]); setPhase('capture'); }} />;
+    return (
+      <ResultPanel
+        capturedPhotos={photos}
+        selectedGrid={grid}
+        onRetake={() => { setPhotos([]); setPhase('capture'); }}
+        initialFrame={frame}
+        initialCustomFrame={customFrame}
+        initialBorder={border}
+        initialShape={shape}
+        initialBorderThick={borderThick}
+        initialDecorCat={decorCat}
+        initialTileLevel={tileLevel}
+        initialPatOpacity={patOpacity}
+        initialShowCorners={showCorners}
+      />
+    );
   }
 
   return (
@@ -199,6 +238,17 @@ export default function PhotoBoothPage() {
       className="page-bg"
       style={{ height: '100dvh', overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative', zIndex: 1 }}
     >
+      {/* GLOBAL SVG MASKS FOR PROPER RESPONSIVE CLIPPING */}
+      <svg width="0" height="0" style={{ position: 'absolute', pointerEvents: 'none' }}>
+        <defs>
+          <clipPath id="mask-love" clipPathUnits="objectBoundingBox">
+            <path d="M0.5,0.85 C0.5,0.85 0.1,0.5 0.1,0.3 C0.1,0.15 0.3,0.15 0.5,0.3 C0.7,0.15 0.9,0.15 0.9,0.3 C0.9,0.5 0.5,0.85 0.5,0.85 Z" />
+          </clipPath>
+          <clipPath id="mask-ticket" clipPathUnits="objectBoundingBox">
+            <path d="M0.1,0 L0.9,0 A0.1,0.133 0 0,0 1,0.133 L1,0.867 A0.1,0.133 0 0,0 0.9,1 L0.1,1 A0.1,0.133 0 0,0 0,0.867 L0,0.133 A0.1,0.133 0 0,0 0.1,0 Z" />
+          </clipPath>
+        </defs>
+      </svg>
 
       {/* ── HEADER ── */}
       <header className="main-header" style={{
@@ -211,7 +261,7 @@ export default function PhotoBoothPage() {
         position: 'relative'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-          <span className="logo-text" style={{ fontWeight: 800, fontSize: 16, color: 'var(--c-ink)', letterSpacing: '-0.02em' }}>MyPhotoBooth</span>
+          <a href="/" className="logo-text" style={{ fontWeight: 800, fontSize: 16, color: 'var(--c-ink)', letterSpacing: '-0.02em', textDecoration: 'none' }}>MyPhotoBooth</a>
         </div>
 
         {/* Timer chips flex center */}
@@ -234,7 +284,7 @@ export default function PhotoBoothPage() {
       {/* ── BODY (flex: 1, min-height: 0 agar tidak overflow) ── */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
 
-          {/* Sidebar kiri (desktop only) */}
+        {/* Sidebar kiri (desktop only) */}
         <aside
           className="hide-mobile"
           style={{ width: 80, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 16, gap: 4, position: 'relative', zIndex: 20 }}
@@ -252,9 +302,11 @@ export default function PhotoBoothPage() {
         {/* PANEL OVERLAY GLOBALS (Single instance, styled for Desktop OR Mobile) */}
         {panel && (
           <div className="panel-overlay-wrapper">
-            {panel === 'grid'   && <GridPanel    selectedGridId={grid.id}    onSelect={g => { setGrid(g); setPanel(null); }}  onClose={() => setPanel(null)} />}
-            {panel === 'filter' && <FilterPanel  selectedFilterId={filter.id} videoRef={videoRef} onSelect={f => { setFilter(f); setPanel(null); }} onClose={() => setPanel(null)} />}
-            {panel === 'glow'   && <BersinarPanel selectedGlowId={glow.id}   glowIntensity={glowInt} onSelectColor={setGlow} onChangeIntensity={setGlowInt} onClose={() => setPanel(null)} />}
+            {panel === 'grid' && <GridPanel selectedGridId={grid.id} onSelect={g => { setGrid(g); setPanel(null); }} onClose={() => setPanel(null)} />}
+            {panel === 'filter' && <FilterPanel selectedFilterId={filter.id} videoRef={videoRef} onSelect={f => { setFilter(f); setPanel(null); }} onClose={() => setPanel(null)} />}
+            {panel === 'glow' && <BersinarPanel selectedGlowId={glow.id} glowIntensity={glowInt} onSelectColor={setGlow} onChangeIntensity={setGlowInt} onClose={() => setPanel(null)} />}
+            {panel === 'bingkai' && <BingkaiPanel frame={frame} setFrame={setFrame} customFrame={customFrame} setCustomFrame={setCustomFrame} border={border} setBorder={setBorder} onClose={() => setPanel(null)} />}
+            {panel === 'dekorasi' && <DekorasiPanel shape={shape} setShape={setShape} borderThick={borderThick} setBorderThick={setBorderThick} decorCat={decorCat} setDecorCat={setDecorCat} tileLevel={tileLevel} setTileLevel={setTileLevel} patOpacity={patOpacity} setPatOpacity={setPatOpacity} showCorners={showCorners} setShowCorners={setShowCorners} onClose={() => setPanel(null)} />}
           </div>
         )}
 
@@ -271,35 +323,80 @@ export default function PhotoBoothPage() {
             ))}
           </div>
 
-          {/* ── Camera wrapper: flex:1 min-height:0 memastikan camera tidak melebihi tinggi body ── */}
+          {/* ── Camera wrapper ── */}
           <div style={{ flex: 1, minHeight: 0, width: '100%', maxWidth: 720, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+
             <div
               className="camera-container"
               style={{
-                /* Kamera selalu 4:3. CSS berikut memastikan camera fit dalam
-                   parent baik secara lebar maupun tinggi tanpa overflow */
+                /* Live border styling computation */
                 aspectRatio: '4/3',
                 maxHeight: '100%',
                 maxWidth: '100%',
                 width: '100%',
-                height: '100%',
+                background: frame.id === 'custom' ? customFrame : frame.background,
+                padding: `${border.paddingRatio * (borderThick / 50) * 100}% ${border.paddingRatio * (borderThick / 50) * 100}% ${border.id === 'polaroid' ? border.paddingRatio * (borderThick / 50) * 290 : border.paddingRatio * (borderThick / 50) * 100}%`,
+                borderRadius: Math.max(border.photoRadius / 10, 8),
+                boxShadow: 'var(--shadow-md)',
+                display: 'flex',
+                flexDirection: 'column',
+                position: 'relative',
+                overflow: 'hidden'
               }}
             >
-              {/* Video: scaleX(-1) = tampilan tidak mirror */}
-              <video
-                ref={videoRef}
-                autoPlay playsInline muted
-                style={{
-                  position: 'absolute', inset: 0, width: '100%', height: '100%',
-                  objectFit: 'cover',
-                  transform: 'scaleX(-1)',
-                  WebkitTransform: 'scaleX(-1)',
-                  filter: filter.cssFilter !== 'none' ? filter.cssFilter : undefined,
-                  borderRadius: 'inherit',
-                }}
-              />
+              {/* Pattern Background Overlay */}
+              {decorCat && (
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  backgroundImage: `url(${decorCat.images[0]})`,
+                  backgroundSize: `${30 - tileLevel * 4}%`,
+                  opacity: patOpacity / 100,
+                  zIndex: 0, pointerEvents: 'none'
+                }} />
+              )}
 
-              {/* Flash */}
+              {/* Corner Accents */}
+              {showCorners && decorCat && [0, 1, 2, 3].map(i => {
+                const isTop = i < 2; const isLeft = i % 2 === 0;
+                return (
+                  <img key={i} src={decorCat.images[i % decorCat.images.length]} alt="" style={{
+                    position: 'absolute',
+                    top: isTop ? 0 : undefined, bottom: !isTop ? 0 : undefined,
+                    left: isLeft ? 0 : undefined, right: !isLeft ? 0 : undefined,
+                    width: '15%', height: '15%', objectFit: 'contain', zIndex: 12,
+                    transform: `scaleX(${isLeft ? 1 : -1}) scaleY(${isTop ? 1 : -1})`,
+                    pointerEvents: 'none'
+                  }} />
+                )
+              })}
+
+              {/* Inner wrapper map for positioning */}
+              <div style={{ flex: 1, position: 'relative', width: '100%', borderRadius: `${Math.max(0, border.photoRadius / 10 - 2)}%`, overflow: 'hidden', zIndex: 5 }}>
+                {/* Video: scaleX(-1) = tampilan tidak mirror */}
+                <video
+                  ref={videoRef}
+                  autoPlay playsInline muted
+                  style={{
+                    position: 'absolute', inset: 0, width: '100%', height: '100%',
+                    objectFit: 'cover',
+                    transform: 'scaleX(-1)',
+                    WebkitTransform: 'scaleX(-1)',
+                    filter: filter.cssFilter !== 'none' ? filter.cssFilter : undefined,
+                    clipPath:
+                      shape === 'oval' ? 'ellipse(50% 50% at 50% 50%)' :
+                        shape === 'love' ? 'url(#mask-love)' :
+                          shape === 'ticket' ? 'url(#mask-ticket)' :
+                            shape === 'hexagon' ? 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)' :
+                              shape === 'star' ? 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)' :
+                                shape === 'diamond' ? 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' :
+                                  shape === 'triangle' ? 'polygon(50% 0%, 100% 100%, 0% 100%)' :
+                                    shape === 'arch' ? 'inset(0 0 0 0 round 50% 50% 0 0)' :
+                                      undefined // rect unclipped natively
+                  }}
+                />
+              </div>
+
+              {/* Flash Overlay */}
               <div ref={flashRef} style={{ position: 'absolute', inset: 0, background: 'white', opacity: 0, pointerEvents: 'none', zIndex: 30 }} />
 
               {/* Loading */}
@@ -387,7 +484,7 @@ export default function PhotoBoothPage() {
       {photos.length > 0 && (
         <div
           className="show-mobile-flex"
-          style={{ display: 'none', overflowX: 'auto', gap: 7, padding: '8px 12px', borderTop: '1px solid var(--c-border)', background: 'var(--c-surface)', flexShrink: 0 }}
+          style={{ display: 'none', overflowX: 'auto', gap: 7, padding: '8px 12px', background: 'var(--c-surface)', flexShrink: 0 }}
         >
           {photos.map((p, i) => (
             <img key={i} src={p.dataUrl} alt={`${i + 1}`} style={{ height: 48, width: 'auto', borderRadius: 7, objectFit: 'cover', flexShrink: 0, border: '2px solid var(--c-ink)' }} />
@@ -395,8 +492,16 @@ export default function PhotoBoothPage() {
         </div>
       )}
 
+      <footer style={{ height: 32, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--c-surface)', borderTop: '1px solid var(--c-border)', fontSize: 11, color: 'var(--c-ink-3)', zIndex: 50, gap: 12, letterSpacing: '0.02em', fontWeight: 500 }}>
+        <a href="https://www.ariefgunadi.my.id/" target="_blank" rel="noopener noreferrer" className="footer-link italic">By:AriefGunadi</a>
+        <span style={{ color: 'var(--c-border-md)' }}> | </span>
+        <a href="https://github.com/9riffegndi" target="_blank" rel="noopener noreferrer" className="footer-link">GitHub</a>
+      </footer>
+
       <style>{`
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        .footer-link { color: var(--c-ink-2); text-decoration: none; transition: color 0.15s; }
+        .footer-link:hover { color: var(--c-ink); }
         @media (max-width: 767px) {
           .hide-mobile { display: none !important; }
           .show-mobile-flex { display: flex !important; }

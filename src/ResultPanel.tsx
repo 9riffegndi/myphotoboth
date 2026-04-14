@@ -10,6 +10,15 @@ interface Props {
   capturedPhotos: CapturedPhoto[];
   selectedGrid: GridLayout;
   onRetake: () => void;
+  initialFrame: FrameColor;
+  initialCustomFrame: string;
+  initialBorder: BorderStyle;
+  initialShape: string;
+  initialBorderThick: number;
+  initialDecorCat: StickerCategory | null;
+  initialTileLevel: number;
+  initialPatOpacity: number;
+  initialShowCorners: boolean;
 }
 
 /* ═══════════════════════════════════════════════
@@ -396,6 +405,14 @@ export const CollageCanvas = forwardRef(({ photos, frame, customFrameHex, border
       const imgs = (await Promise.all(decorCat.images.map(s => loadImg(s)))).filter(Boolean) as HTMLImageElement[];
       drawCornerAccents(ctx, imgs, decorCat, CW, CH, dark);
     }
+
+    // 6. Watermark Maint
+    ctx.font = `600 ${Math.max(12, Math.round(refDim * 0.015))}px 'Inter', sans-serif`;
+    ctx.fillStyle = dark ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.45)';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    const wmPad = Math.max(8, Math.round(refDim * 0.015));
+    ctx.fillText("buatan https://www.ariefgunadi.my.id/", CW - wmPad, CH - wmPad);
   }, [photos, frame, customFrameHex, border, decorCat, tileLevel, patOpacity, showCorners, shape, borderThick, CW, CH, refDim, currentCols, currentRows, currentSlots]);
 
   useEffect(() => { drawCanvas(); }, [drawCanvas]);
@@ -410,19 +427,24 @@ export const CollageCanvas = forwardRef(({ photos, frame, customFrameHex, border
 /* ═══════════════════════════════════════════════
    RESULT PANEL MAIN
 ═══════════════════════════════════════════════ */
-export default function ResultPanel({ capturedPhotos, selectedGrid, onRetake }: Props) {
+export default function ResultPanel({ 
+  capturedPhotos, selectedGrid, onRetake, 
+  initialFrame, initialCustomFrame, initialBorder,
+  initialShape, initialBorderThick, initialDecorCat,
+  initialTileLevel, initialPatOpacity, initialShowCorners
+}: Props) {
   // State kontrol
   const [orient, setOrient]             = useState<'auto' | 'portrait' | 'landscape'>('auto');
-  const [frame, setFrame]               = useState<FrameColor>(FRAME_COLORS[1]);
-  const [customFrameHex, setCustomFrameHex] = useState('#ffffff');
-  const [border, setBorder]             = useState<BorderStyle>(BORDER_STYLES[1]);
-  const [decorCat, setDecorCat]         = useState<StickerCategory | null>(null);
-  const [tileLevel, setTileLevel]       = useState(3);
-  const [patOpacity, setPatOpacity]     = useState(45);
-  const [showCorners, setShowCorners]   = useState(true);
+  const [frame, setFrame]               = useState<FrameColor>(initialFrame);
+  const [customFrameHex, setCustomFrameHex] = useState(initialCustomFrame);
+  const [border, setBorder]             = useState<BorderStyle>(initialBorder);
+  const [decorCat, setDecorCat]         = useState<StickerCategory | null>(initialDecorCat);
+  const [tileLevel, setTileLevel]       = useState(initialTileLevel);
+  const [patOpacity, setPatOpacity]     = useState(initialPatOpacity);
+  const [showCorners, setShowCorners]   = useState(initialShowCorners);
   const [downloading, setDownloading]   = useState(false);
-  const [shape, setShape]               = useState<string>('rect');
-  const [borderThick, setBorderThick]   = useState(50);
+  const [shape, setShape]               = useState<string>(initialShape);
+  const [borderThick, setBorderThick]   = useState(initialBorderThick);
 
   // Group photos into sessions
   const chunks = useMemo(() => {
@@ -522,7 +544,7 @@ export default function ResultPanel({ capturedPhotos, selectedGrid, onRetake }: 
         zIndex: 50,
       }}>
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          <span style={{ fontWeight: 800, fontSize: 16, color: 'var(--c-ink)', letterSpacing: '-0.02em' }}>MyPhotoBooth</span>
+          <a href="/" className="logo-text" style={{ fontWeight: 800, fontSize: 16, color: 'var(--c-ink)', letterSpacing: '-0.02em', textDecoration: 'none' }}>MyPhotoBooth</a>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -762,8 +784,16 @@ export default function ResultPanel({ capturedPhotos, selectedGrid, onRetake }: 
         </div>
       </div>
 
+      <footer style={{ height: 32, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--c-surface)', borderTop: '1px solid var(--c-border)', fontSize: 11, color: 'var(--c-ink-3)', zIndex: 50, gap: 12, letterSpacing: '0.02em', fontWeight: 500 }}>
+        <a href="https://www.ariefgunadi.my.id/" target="_blank" rel="noopener noreferrer" className="footer-link italic">By:AriefGunadi</a>
+        <span style={{ color: 'var(--c-border-md)' }}> | </span>
+        <a href="https://github.com/9riffegndi" target="_blank" rel="noopener noreferrer" className="footer-link">GitHub</a>
+      </footer>
+
       <style>{`
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        .footer-link { color: var(--c-ink-2); text-decoration: none; transition: color 0.15s; }
+        .footer-link:hover { color: var(--c-ink); }
         @media (max-width: 767px) {
           .result-body { flex-direction: column !important; }
           .canvas-col { width: 100% !important; height: auto !important; border-right: none !important; border-bottom: 1px solid var(--c-border); padding: 12px 16px !important; flex: 0 0 auto !important; }
