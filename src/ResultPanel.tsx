@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { FlipCardStack } from './FlipCard';
 import { FRAME_COLORS, BORDER_STYLES, STICKER_CATEGORIES } from '@/data';
-import type { CapturedPhoto, GridLayout, FrameColor, StickerCategory } from '@/types';
-import type { BorderStyle } from '@/data';
+import type { CapturedPhoto, GridLayout, FrameColor, StickerCategory, BorderStyle } from '@/types';
 
 interface Props {
   capturedPhotos: CapturedPhoto[];
