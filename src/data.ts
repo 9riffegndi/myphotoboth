@@ -1,4 +1,4 @@
-import type { GridLayout, FilterOption, GlowColor, FrameColor, StickerCategory } from './types';
+import type { GridLayout, FilterOption, GlowColor, FrameColor, StickerCategory, BorderStyle } from './types';
 
 /* ═══════════════════════════════════════════════
    GRID LAYOUTS
@@ -151,14 +151,6 @@ export const FRAME_COLORS: FrameColor[] = [
 /* ═══════════════════════════════════════════════
    BORDER STYLES
 ═══════════════════════════════════════════════ */
-export type BorderStyle = {
-  id: string;
-  label: string;
-  paddingRatio: number;
-  gapRatio: number;
-  photoRadius: number;
-};
-
 export const BORDER_STYLES: BorderStyle[] = [
   { id: 'flush',    label: 'Tanpa',    paddingRatio: 0,     gapRatio: 0,     photoRadius: 0   },
   { id: 'thin',     label: 'Tipis',    paddingRatio: 0.025, gapRatio: 0.015, photoRadius: 0   },

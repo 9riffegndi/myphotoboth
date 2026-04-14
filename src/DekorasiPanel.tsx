@@ -21,9 +21,10 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
       type="button"
       onClick={onClick}
       style={{
-        padding: '6px 12px', borderRadius: 100, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.1s', fontFamily: 'inherit',
+        padding: '8px 14px', borderRadius: 100, fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s ease', fontFamily: 'inherit',
         background: active ? 'var(--c-ink)' : 'var(--c-surface)', color: active ? '#fff' : 'var(--c-ink-2)',
-        border: active ? '1.5px solid var(--c-ink)' : '1.5px solid var(--c-border-md)'
+        border: active ? '1.5px solid var(--c-ink)' : '1.5px solid var(--c-border-md)',
+        boxShadow: active ? '0 4px 12px rgba(0,0,0,0.1)' : 'none',
       }}
     >
       {children}
@@ -60,10 +61,10 @@ export default function DekorasiPanel({
   onClose
 }: Props) {
   return (
-    <div className="popup-panel" style={{ width: 340, maxWidth: '92vw', maxHeight: '80vh', overflowY: 'auto' }}>
+    <div className="popup-panel" style={{ width: 360, maxWidth: '92vw', maxHeight: '80vh', overflowY: 'auto' }}>
       <div
-        className="flex items-center justify-between px-4 py-3 sticky top-0"
-        style={{ borderBottom: '1px solid var(--c-border)', background: 'var(--c-bg)', zIndex: 10 }}
+        className="flex items-center justify-between sticky top-0"
+        style={{ padding: '16px', borderBottom: '1px solid var(--c-border)', background: 'var(--c-surface)', zIndex: 10 }}
       >
         <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--c-ink)' }}>Potongan & Dekorasi</span>
         <button
@@ -81,7 +82,7 @@ export default function DekorasiPanel({
         
         {/* SHAPE */}
         <Sec label="Bentuk Area Foto">
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
             {['rect', 'oval', 'love', 'hexagon', 'star', 'triangle', 'diamond', 'arch', 'ticket'].map(s => {
               const labels: Record<string, string> = { 
                 rect: 'Kotak', oval: 'Oval', love: 'Love', hexagon: 'Segi Enam',
@@ -103,7 +104,7 @@ export default function DekorasiPanel({
 
         {/* DEKORASI */}
         <Sec label="Tema Stiker & Pola">
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
             <Chip active={!decorCat} onClick={() => setDecorCat(null)}>✕ Tanpa</Chip>
             {STICKER_CATEGORIES.map(cat => (
               <Chip key={cat.id} active={decorCat?.id === cat.id} onClick={() => setDecorCat(decorCat?.id === cat.id ? null : cat)}>

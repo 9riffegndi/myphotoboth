@@ -543,8 +543,9 @@ export default function ResultPanel({
         borderBottom: '1px solid var(--c-border)',
         zIndex: 50,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <a href="/" className="logo-text" style={{ fontWeight: 800, fontSize: 16, color: 'var(--c-ink)', letterSpacing: '-0.02em', textDecoration: 'none' }}>MyPhotoBooth</a>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <img src="/logo-intarabox.png" alt="IntaraBox" style={{ width: 24, height: 24, objectFit: 'contain' }} />
+          <a href="/" className="logo-text" style={{ fontWeight: 800, fontSize: 16, color: 'var(--c-ink)', letterSpacing: '-0.02em', textDecoration: 'none' }}>IntaraBox</a>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -784,7 +785,7 @@ export default function ResultPanel({
         </div>
       </div>
 
-      <footer style={{ height: 32, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--c-surface)', borderTop: '1px solid var(--c-border)', fontSize: 11, color: 'var(--c-ink-3)', zIndex: 50, gap: 12, letterSpacing: '0.02em', fontWeight: 500 }}>
+      <footer style={{ height: 20, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--c-surface)', borderTop: '1px solid var(--c-border)', fontSize: 11, color: 'var(--c-ink-3)', zIndex: 50, gap: 12, letterSpacing: '0.02em', fontWeight: 500 }}>
         <a href="https://www.ariefgunadi.my.id/" target="_blank" rel="noopener noreferrer" className="footer-link italic">By:AriefGunadi</a>
         <span style={{ color: 'var(--c-border-md)' }}> | </span>
         <a href="https://github.com/9riffegndi" target="_blank" rel="noopener noreferrer" className="footer-link">GitHub</a>

@@ -25,8 +25,8 @@ export default function BersinarPanel({
   return (
       <div className="popup-panel" style={{ width: 300, maxWidth: '92vw' }}>
       <div
-        className="flex items-center justify-between px-4 py-3"
-        style={{ borderBottom: '1px solid var(--c-border)' }}
+        className="flex items-center justify-between"
+        style={{ padding: '16px', borderBottom: '1px solid var(--c-border)' }}
       >
         <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--c-ink)' }}>Cahaya Latar</span>
         <button

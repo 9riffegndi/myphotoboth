@@ -260,8 +260,9 @@ export default function PhotoBoothPage() {
         zIndex: 50,
         position: 'relative'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-          <a href="/" className="logo-text" style={{ fontWeight: 800, fontSize: 16, color: 'var(--c-ink)', letterSpacing: '-0.02em', textDecoration: 'none' }}>MyPhotoBooth</a>
+        <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, gap: 8 }}>
+          <img src="/logo-intarabox.png" alt="IntaraBox" style={{ width: 24, height: 24, objectFit: 'contain' }} />
+          <a href="/" className="logo-text" style={{ fontWeight: 800, fontSize: 16, color: 'var(--c-ink)', letterSpacing: '-0.02em', textDecoration: 'none' }}>IntaraBox</a>
         </div>
 
         {/* Timer chips flex center */}
@@ -301,12 +302,19 @@ export default function PhotoBoothPage() {
 
         {/* PANEL OVERLAY GLOBALS (Single instance, styled for Desktop OR Mobile) */}
         {panel && (
-          <div className="panel-overlay-wrapper">
-            {panel === 'grid' && <GridPanel selectedGridId={grid.id} onSelect={g => { setGrid(g); setPanel(null); }} onClose={() => setPanel(null)} />}
-            {panel === 'filter' && <FilterPanel selectedFilterId={filter.id} videoRef={videoRef} onSelect={f => { setFilter(f); setPanel(null); }} onClose={() => setPanel(null)} />}
-            {panel === 'glow' && <BersinarPanel selectedGlowId={glow.id} glowIntensity={glowInt} onSelectColor={setGlow} onChangeIntensity={setGlowInt} onClose={() => setPanel(null)} />}
-            {panel === 'bingkai' && <BingkaiPanel frame={frame} setFrame={setFrame} customFrame={customFrame} setCustomFrame={setCustomFrame} border={border} setBorder={setBorder} onClose={() => setPanel(null)} />}
-            {panel === 'dekorasi' && <DekorasiPanel shape={shape} setShape={setShape} borderThick={borderThick} setBorderThick={setBorderThick} decorCat={decorCat} setDecorCat={setDecorCat} tileLevel={tileLevel} setTileLevel={setTileLevel} patOpacity={patOpacity} setPatOpacity={setPatOpacity} showCorners={showCorners} setShowCorners={setShowCorners} onClose={() => setPanel(null)} />}
+          <div style={{ position: 'absolute', inset: 0, zIndex: 99, display: 'flex' }}>
+            <div
+              className="panel-scrim"
+              onClick={() => setPanel(null)}
+              style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.15)', transition: 'background 0.2s' }}
+            />
+            <div className="panel-overlay-wrapper" style={{ zIndex: 100 }}>
+              {panel === 'grid' && <GridPanel selectedGridId={grid.id} onSelect={g => { setGrid(g); setPanel(null); }} onClose={() => setPanel(null)} />}
+              {panel === 'filter' && <FilterPanel selectedFilterId={filter.id} videoRef={videoRef} onSelect={f => { setFilter(f); setPanel(null); }} onClose={() => setPanel(null)} />}
+              {panel === 'glow' && <BersinarPanel selectedGlowId={glow.id} glowIntensity={glowInt} onSelectColor={setGlow} onChangeIntensity={setGlowInt} onClose={() => setPanel(null)} />}
+              {panel === 'bingkai' && <BingkaiPanel frame={frame} setFrame={setFrame} customFrame={customFrame} setCustomFrame={setCustomFrame} border={border} setBorder={setBorder} onClose={() => setPanel(null)} />}
+              {panel === 'dekorasi' && <DekorasiPanel shape={shape} setShape={setShape} borderThick={borderThick} setBorderThick={setBorderThick} decorCat={decorCat} setDecorCat={setDecorCat} tileLevel={tileLevel} setTileLevel={setTileLevel} patOpacity={patOpacity} setPatOpacity={setPatOpacity} showCorners={showCorners} setShowCorners={setShowCorners} onClose={() => setPanel(null)} />}
+            </div>
           </div>
         )}
 
@@ -492,7 +500,7 @@ export default function PhotoBoothPage() {
         </div>
       )}
 
-      <footer style={{ height: 32, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--c-surface)', borderTop: '1px solid var(--c-border)', fontSize: 11, color: 'var(--c-ink-3)', zIndex: 50, gap: 12, letterSpacing: '0.02em', fontWeight: 500 }}>
+      <footer style={{ height: 20, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--c-surface)', borderTop: '1px solid var(--c-border)', fontSize: 11, color: 'var(--c-ink-3)', zIndex: 50, gap: 12, letterSpacing: '0.02em', fontWeight: 500 }}>
         <a href="https://www.ariefgunadi.my.id/" target="_blank" rel="noopener noreferrer" className="footer-link italic">By:AriefGunadi</a>
         <span style={{ color: 'var(--c-border-md)' }}> | </span>
         <a href="https://github.com/9riffegndi" target="_blank" rel="noopener noreferrer" className="footer-link">GitHub</a>
@@ -512,16 +520,18 @@ export default function PhotoBoothPage() {
           /* Panel Mobile Bottom Sheet */
           .panel-overlay-wrapper {
             position: absolute; left: 0; right: 0; bottom: 0; top: auto; z-index: 9999;
-            width: 100%; border-radius: 24px 24px 0 0;
+            width: 100%; border-radius: 20px 20px 0 0;
             background: var(--c-surface);
             box-shadow: 0 -4px 32px rgba(0,0,0,0.15);
             animation: slide-up 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+            max-height: 85vh; display: flex; flex-direction: column; overflow: hidden;
           }
           .panel-overlay-wrapper .popup-panel {
             width: 100% !important; max-width: none !important;
             border: none !important; box-shadow: none !important;
-            border-radius: 24px 24px 0 0 !important;
+            border-radius: 0 !important;
             background: transparent !important;
+            flex: 1; overflow-y: auto; max-height: none !important;
           }
         }
         @media (min-width: 768px) {

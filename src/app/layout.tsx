@@ -2,9 +2,12 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'MyPhotoBooth — Strip Foto Online Gratis',
+  title: 'IntaraBox — Strip Foto Online Gratis',
   description: 'Buat strip foto kolase dengan kamera online gratis. Layout kisi, filter, efek cahaya, warna frame, dan stiker. Langsung di browser.',
-  keywords: ['photo booth', 'kamera online', 'strip foto', 'kolase foto', 'filter foto'],
+  icons: {
+    icon: '/logo-intarabox.png',
+  },
+  keywords: ['photo booth', 'kamera online', 'strip foto', 'kolase foto', 'filter foto', 'intarabox'],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
