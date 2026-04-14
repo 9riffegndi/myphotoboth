@@ -44,3 +44,11 @@ export type StickerCategory = {
   images: string[];
   needsBackground: boolean; // true = perlu backing putih di frame gelap
 };
+
+export type BorderStyle = {
+  id: string;
+  label: string;
+  paddingRatio: number;
+  gapRatio: number;
+  photoRadius: number;
+};
