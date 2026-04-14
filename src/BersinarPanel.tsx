@@ -23,7 +23,7 @@ export default function BersinarPanel({
   const isOff = selectedGlowId === 'off';
 
   return (
-    <div className="popup-panel" style={{ width: 300 }}>
+      <div className="popup-panel" style={{ width: 300, maxWidth: '92vw' }}>
       <div
         className="flex items-center justify-between px-4 py-3"
         style={{ borderBottom: '1px solid var(--c-border)' }}

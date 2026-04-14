@@ -62,7 +62,7 @@ function FilterThumb({
 
 export default function FilterPanel({ selectedFilterId, videoRef, onSelect, onClose }: Props) {
   return (
-    <div className="popup-panel" style={{ width: 300 }}>
+      <div className="popup-panel" style={{ width: 300, maxWidth: '92vw' }}>
       <div
         className="flex items-center justify-between px-4 py-3"
         style={{ borderBottom: '1px solid var(--c-border)' }}

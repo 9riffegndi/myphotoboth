@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
+import { FlipCardStack } from './FlipCard';
 import { FRAME_COLORS, BORDER_STYLES, STICKER_CATEGORIES } from '@/data';
 import type { CapturedPhoto, GridLayout, FrameColor, StickerCategory } from '@/types';
 import type { BorderStyle } from '@/data';
@@ -296,68 +297,36 @@ function getTileStep(level: number, minDim: number): number {
 }
 
 /* ═══════════════════════════════════════════════
-   RESULT PANEL
+   COLLAGE CANVAS COMPONENT
 ═══════════════════════════════════════════════ */
-export default function ResultPanel({ capturedPhotos, selectedGrid, onRetake }: Props) {
+interface CollageProps {
+  photos: CapturedPhoto[];
+  frame: FrameColor;
+  customFrameHex: string;
+  border: BorderStyle;
+  decorCat: StickerCategory | null;
+  tileLevel: number;
+  patOpacity: number;
+  showCorners: boolean;
+  shape: string;
+  borderThick: number;
+  CW: number;
+  CH: number;
+  currentCols: number;
+  currentRows: number;
+  currentSlots: any[];
+}
+
+export const CollageCanvas = forwardRef(({ photos, frame, customFrameHex, border, decorCat, tileLevel, patOpacity, showCorners, shape, borderThick, CW, CH, currentCols, currentRows, currentSlots }: CollageProps, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // State kontrol
-  const [orient, setOrient]             = useState<'auto' | 'portrait' | 'landscape'>('auto');
-  const [frame, setFrame]               = useState<FrameColor>(FRAME_COLORS[1]);
-  const [customFrameHex, setCustomFrameHex] = useState('#ffffff');
-  const [border, setBorder]             = useState<BorderStyle>(BORDER_STYLES[1]);
-  const [decorCat, setDecorCat]         = useState<StickerCategory | null>(null);
-  const [tileLevel, setTileLevel]       = useState(3);          // 1-5 kepadatan
-  const [patOpacity, setPatOpacity]     = useState(45);         // 0-100
-  const [showCorners, setShowCorners]   = useState(true);
-  const [downloading, setDownloading]   = useState(false);
-  
-  // Custom Shapes & Thickness
-  const [shape, setShape]               = useState<string>('rect');
-  const [borderThick, setBorderThick]   = useState(50);         // 0-100 slider
-
-  // Tentukan dimensi canvas & grid berdasarkan orientasi
-  let CW = selectedGrid.canvasW;
-  let CH = selectedGrid.canvasH;
-  let currentCols = selectedGrid.cols;
-  let currentRows = selectedGrid.rows;
-  let currentSlots = selectedGrid.slots;
-
-  const isPortraitNow = CH > CW;
-  const isSquareNow = CH === CW;
-  
-  let doSwap = false;
-  if (orient === 'portrait' && !isPortraitNow) doSwap = true;
-  else if (orient === 'landscape' && (isPortraitNow || isSquareNow)) doSwap = true;
-
-  if (doSwap) {
-    if (orient === 'landscape' && isSquareNow) {
-      CW = CH * (4/3); // Square -> Landscape
-    } else if (orient === 'portrait' && isSquareNow) {
-      CH = CW * (4/3); // Square -> Portrait
-    } else {
-      // Rectangle (Strip/Single dll)
-      if (currentCols !== currentRows) {
-        // Asimetris: hitung ukuran asli tiap cell
-        const origCellW = CW / currentCols;
-        const origCellH = CH / currentRows;
-        
-        // Geser Baris jd Kolom (Transpose array)
-        [currentCols, currentRows] = [currentRows, currentCols];
-        currentSlots = selectedGrid.slots.map(s => ({
-          x: s.y, y: s.x, w: s.h, h: s.w
-        }));
-        
-        // KALIKAN cell original dengan susunan kolom/baris yang baru!
-        // Ini menjaga aspect ratio cell foto tetap 4:3 / sesuai asli tanpa gepeng!
-        CW = origCellW * currentCols;
-        CH = origCellH * currentRows;
-      } else {
-        // Simetris seperti NxN bukan square (misal 1x1 rasio 4:3)
-        [CW, CH] = [CH, CW];
-      }
+  useImperativeHandle(ref, () => ({
+    exportCanvas: () => {
+      const cvs = canvasRef.current;
+      if (!cvs) return null;
+      return cvs.toDataURL('image/png', 1.0);
     }
-  }
+  }));
 
   const refDim = Math.min(CW, CH);
 
@@ -373,7 +342,7 @@ export default function ResultPanel({ capturedPhotos, selectedGrid, onRetake }: 
     applyBackground(ctx, bgVal, CW, CH);
     const dark = isBgDark(bgVal === 'custom' ? customFrameHex : bgVal);
 
-    // 2. Pola tiling (sebelum foto)
+    // 2. Pola tiling
     if (decorCat) {
       const imgs = (await Promise.all(decorCat.images.map(s => loadImg(s)))).filter(Boolean) as HTMLImageElement[];
       const step = getTileStep(tileLevel, refDim);
@@ -381,7 +350,7 @@ export default function ResultPanel({ capturedPhotos, selectedGrid, onRetake }: 
     }
 
     // 3. Foto
-    const thickMult   = borderThick / 50; // 50 = 1x
+    const thickMult   = borderThick / 50; 
     const PAD         = Math.round(border.paddingRatio * refDim * thickMult);
     const GAP         = Math.round(border.gapRatio * refDim * thickMult);
     const EXTRA_BOT   = border.id === 'polaroid' ? Math.round(PAD * 1.9) : 0;
@@ -391,9 +360,9 @@ export default function ResultPanel({ capturedPhotos, selectedGrid, onRetake }: 
     const totalColGaps = (currentCols - 1) * GAP;
     const totalRowGaps = (currentRows - 1) * GAP;
 
-    for (let i = 0; i < Math.min(capturedPhotos.length, currentSlots.length); i++) {
+    for (let i = 0; i < Math.min(photos.length, currentSlots.length); i++) {
       const slot  = currentSlots[i];
-      const photo = capturedPhotos[i];
+      const photo = photos[i];
       if (!photo) continue;
 
       const colIdx  = Math.round((slot.x / 100) * currentCols);
@@ -412,7 +381,6 @@ export default function ResultPanel({ capturedPhotos, selectedGrid, onRetake }: 
       if (img) drawCover(ctx, img, x, y, w, h, photo.filter, border.photoRadius * (refDim / 1000), shape);
     }
 
-
     // 4. Polaroid label
     if (border.id === 'polaroid' && EXTRA_BOT > 0) {
       const d = new Date();
@@ -423,25 +391,115 @@ export default function ResultPanel({ capturedPhotos, selectedGrid, onRetake }: 
       ctx.fillText(label, CW / 2, CH - EXTRA_BOT / 2);
     }
 
-    // 5. Corner accents (di atas foto)
+    // 5. Corner accents
     if (decorCat && showCorners) {
       const imgs = (await Promise.all(decorCat.images.map(s => loadImg(s)))).filter(Boolean) as HTMLImageElement[];
       drawCornerAccents(ctx, imgs, decorCat, CW, CH, dark);
     }
-
-  }, [capturedPhotos, selectedGrid, frame, customFrameHex, border, decorCat, tileLevel, patOpacity, showCorners, orient, CW, CH, refDim, shape, borderThick]);
+  }, [photos, frame, customFrameHex, border, decorCat, tileLevel, patOpacity, showCorners, shape, borderThick, CW, CH, refDim, currentCols, currentRows, currentSlots]);
 
   useEffect(() => { drawCanvas(); }, [drawCanvas]);
 
-  const handleDownload = async () => {
+  return (
+    <div style={{ width: '100%', height: '100%', backgroundColor: 'transparent', borderRadius: 0, overflow: 'visible', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <canvas ref={canvasRef} width={CW} height={CH} style={{ display: 'block', maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+    </div>
+  );
+});
+
+/* ═══════════════════════════════════════════════
+   RESULT PANEL MAIN
+═══════════════════════════════════════════════ */
+export default function ResultPanel({ capturedPhotos, selectedGrid, onRetake }: Props) {
+  // State kontrol
+  const [orient, setOrient]             = useState<'auto' | 'portrait' | 'landscape'>('auto');
+  const [frame, setFrame]               = useState<FrameColor>(FRAME_COLORS[1]);
+  const [customFrameHex, setCustomFrameHex] = useState('#ffffff');
+  const [border, setBorder]             = useState<BorderStyle>(BORDER_STYLES[1]);
+  const [decorCat, setDecorCat]         = useState<StickerCategory | null>(null);
+  const [tileLevel, setTileLevel]       = useState(3);
+  const [patOpacity, setPatOpacity]     = useState(45);
+  const [showCorners, setShowCorners]   = useState(true);
+  const [downloading, setDownloading]   = useState(false);
+  const [shape, setShape]               = useState<string>('rect');
+  const [borderThick, setBorderThick]   = useState(50);
+
+  // Group photos into sessions
+  const chunks = useMemo(() => {
+    const res = [];
+    for (let i = 0; i < capturedPhotos.length; i += selectedGrid.photoCount) {
+      res.push(capturedPhotos.slice(i, i + selectedGrid.photoCount));
+    }
+    return res;
+  }, [capturedPhotos, selectedGrid.photoCount]);
+
+  const [topIndex, setTopIndex] = useState(chunks.length > 0 ? chunks.length - 1 : 0);
+  const collageRefs = useRef<Array<any>>([]);
+
+  // Tentukan dimensi canvas & grid berdasarkan orientasi
+  let CW = selectedGrid.canvasW;
+  let CH = selectedGrid.canvasH;
+  let currentCols = selectedGrid.cols;
+  let currentRows = selectedGrid.rows;
+  let currentSlots = selectedGrid.slots;
+
+  const isPortraitNow = CH > CW;
+  const isSquareNow = CH === CW;
+  
+  let doSwap = false;
+  if (orient === 'portrait' && !isPortraitNow) doSwap = true;
+  else if (orient === 'landscape' && (isPortraitNow || isSquareNow)) doSwap = true;
+
+  if (doSwap) {
+    if (orient === 'landscape' && isSquareNow) {
+      CW = CH * (4/3);
+    } else if (orient === 'portrait' && isSquareNow) {
+      CH = CW * (4/3);
+    } else {
+      if (currentCols !== currentRows) {
+        const origCellW = CW / currentCols;
+        const origCellH = CH / currentRows;
+        [currentCols, currentRows] = [currentRows, currentCols];
+        currentSlots = selectedGrid.slots.map(s => ({
+          x: s.y, y: s.x, w: s.h, h: s.w
+        }));
+        CW = origCellW * currentCols;
+        CH = origCellH * currentRows;
+      } else {
+        [CW, CH] = [CH, CW];
+      }
+    }
+  }
+
+  const downloadActive = async () => {
+    const activeRef = collageRefs.current[topIndex];
+    if (!activeRef) return;
     setDownloading(true);
-    await drawCanvas();
-    const canvas = canvasRef.current;
-    if (!canvas) { setDownloading(false); return; }
-    const link = document.createElement('a');
-    link.download = `photobooth-${Date.now()}.png`;
-    link.href = canvas.toDataURL('image/png', 1.0);
-    link.click();
+    const dataUrl = activeRef.exportCanvas();
+    if (dataUrl) {
+      const link = document.createElement('a');
+      link.download = `photobooth-${Date.now()}.png`;
+      link.href = dataUrl;
+      link.click();
+    }
+    setDownloading(false);
+  };
+
+  const downloadAll = async () => {
+    setDownloading(true);
+    for (let i = 0; i < chunks.length; i++) {
+       const ref = collageRefs.current[i];
+       if (ref) {
+         const dataUrl = ref.exportCanvas();
+         if (dataUrl) {
+           const link = document.createElement('a');
+           link.download = `photobooth-${Date.now()}-${i+1}.png`;
+           link.href = dataUrl;
+           link.click();
+         }
+       }
+       await new Promise(r => setTimeout(r, 400));
+    }
     setDownloading(false);
   };
 
@@ -455,22 +513,22 @@ export default function ResultPanel({ capturedPhotos, selectedGrid, onRetake }: 
     <div className="page-bg" style={{ height: '100dvh', overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative', zIndex: 1 }}>
 
       {/* HEADER */}
-      <header style={{
-        height: 52, flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 16px',
+      <header className="result-header" style={{
+        minHeight: 52, flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap',
+        padding: '8px 16px', gap: 10,
         background: 'var(--c-surface)',
         borderBottom: '1px solid var(--c-border)',
         zIndex: 50,
       }}>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
           <span style={{ fontWeight: 800, fontSize: 16, color: 'var(--c-ink)', letterSpacing: '-0.02em' }}>MyPhotoBooth</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           {/* Orientasi dropdown */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 11, color: 'var(--c-ink-3)', fontWeight: 600 }}>Orientasi</span>
+            <span className="orient-text" style={{ fontSize: 11, color: 'var(--c-ink-3)', fontWeight: 600 }}>Orientasi</span>
             <select
               value={orient}
               onChange={e => setOrient(e.target.value as typeof orient)}
@@ -492,13 +550,13 @@ export default function ResultPanel({ capturedPhotos, selectedGrid, onRetake }: 
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
               <path d="M1 7h12M5 3L1 7l4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            Foto Ulang
+            <span>Foto Ulang</span>
           </button>
         </div>
       </header>
 
       {/* BODY: 2-kolom, flex:1, overflow hidden */}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+      <div className="result-body" style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
 
         {/* ── Kiri: Canvas preview + unduh (sticky) ── */}
         <div
@@ -521,32 +579,51 @@ export default function ResultPanel({ capturedPhotos, selectedGrid, onRetake }: 
             className="result-canvas-wrap"
             style={{
               flex: '0 0 auto',
-              maxHeight: 'calc(100dvh - 52px - 60px)',
+              maxHeight: 'calc(100dvh - 52px - 90px)',
               aspectRatio: `${CW}/${CH}`,
-              maxWidth: 'min(100%, calc((100dvh - 112px) * ${CW} / ${CH}))',
+              maxWidth: 'min(100%, calc((100dvh - 142px) * ${CW} / ${CH}))',
+              position: 'relative',
+              width: '100%',
             }}
           >
-            <canvas
-              ref={canvasRef}
-              width={CW} height={CH}
-              style={{ display: 'block', width: '100%', height: '100%' }}
-            />
+            <FlipCardStack onTopCardChange={setTopIndex}>
+              {chunks.map((chk, i) => (
+                <CollageCanvas
+                  key={i}
+                  ref={el => { collageRefs.current[i] = el; }}
+                  photos={chk}
+                  CW={CW} CH={CH}
+                  currentCols={currentCols} currentRows={currentRows} currentSlots={currentSlots}
+                  frame={frame} customFrameHex={customFrameHex} border={border} decorCat={decorCat}
+                  tileLevel={tileLevel} patOpacity={patOpacity} showCorners={showCorners}
+                  shape={shape} borderThick={borderThick}
+                />
+              ))}
+            </FlipCardStack>
           </div>
 
-          {/* Download */}
-          <button
-            onClick={handleDownload}
-            disabled={downloading}
-            className="btn btn-primary"
-            style={{ width: '100%', height: 44, fontSize: 14, gap: 7 }}
-          >
+          <div style={{ display: 'flex', width: '100%', gap: 8, marginTop: 8 }}>
+            <button
+              onClick={downloadActive}
+              disabled={downloading}
+              className="btn btn-ghost"
+              style={{ flex: 1, height: 44, fontSize: 13, gap: 6, fontWeight: 700, border: '1.5px solid var(--c-border-md)' }}
+            >
+              Download Yang Ini
+            </button>
+            <button
+              onClick={downloadAll}
+              disabled={downloading}
+              className="btn btn-primary"
+              style={{ flex: 1.5, height: 44, fontSize: 13, gap: 6 }}
+            >
             {downloading ? (
               <>
                 <svg style={{ animation: 'spin 0.8s linear infinite' }} width="15" height="15" viewBox="0 0 24 24" fill="none">
                   <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.25)" strokeWidth="3" />
                   <path d="M12 2a10 10 0 0110 10" stroke="white" strokeWidth="3" strokeLinecap="round" />
                 </svg>
-                Menyimpan…
+                <span>Menyimpan…</span>
               </>
             ) : (
               <>
@@ -554,13 +631,14 @@ export default function ResultPanel({ capturedPhotos, selectedGrid, onRetake }: 
                   <path d="M8 11L3 6m5 5l5-5M8 11V2" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                   <path d="M2 13h12" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
                 </svg>
-                Unduh Foto
+                <span>Download Semua</span>
               </>
             )}
           </button>
         </div>
+      </div>
 
-        {/* ── Kanan: Panel kontrol (bisa scroll sendiri) ── */}
+      {/* ── Kanan: Panel kontrol (bisa scroll sendiri) ── */}
         <div
           className="no-scrollbar controls-col"
           style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '16px 16px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}
@@ -686,12 +764,18 @@ export default function ResultPanel({ capturedPhotos, selectedGrid, onRetake }: 
 
       <style>{`
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-        @media (max-width: 640px) {
-          .canvas-col   { width: 100% !important; height: auto !important; border-right: none !important; border-bottom: 1px solid var(--c-border); }
-          .controls-col { max-height: 45dvh; }
-          .result-canvas-wrap canvas { max-height: 40dvh !important; }
+        @media (max-width: 767px) {
+          .result-body { flex-direction: column !important; }
+          .canvas-col { width: 100% !important; height: auto !important; border-right: none !important; border-bottom: 1px solid var(--c-border); padding: 12px 16px !important; flex: 0 0 auto !important; }
+          .controls-col { flex: 1 !important; max-height: none !important; padding-top: 16px !important; }
+          .result-canvas-wrap { max-width: 100% !important; max-height: 48dvh !important; }
+          .result-header { padding: 10px 12px !important; gap: 8px !important; }
+          .orient-text { display: none !important; }
         }
-        @media (min-width: 641px) {
+        @media (min-width: 768px) and (max-width: 1024px) {
+          .canvas-col { width: 45vw !important; }
+        }
+        @media (min-width: 1025px) {
           .canvas-col { width: clamp(340px, 60%, 720px); }
         }
       `}</style>

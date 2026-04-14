@@ -74,6 +74,7 @@ export default function PhotoBoothPage() {
   const [grid, setGrid] = useState<GridLayout>(GRID_LAYOUTS[3]);
   const [filter, setFilter] = useState<FilterOption>(FILTER_OPTIONS[0]);
   const [glow, setGlow] = useState<GlowColor>(GLOW_COLORS[0]);
+  const [sessions, setSessions] = useState(3);
   const [glowInt, setGlowInt] = useState(60);
   const [timer, setTimer] = useState<3 | 5 | 10>(3);
   const [panel, setPanel] = useState<ActivePanel>(null);
@@ -157,16 +158,26 @@ export default function PhotoBoothPage() {
     if (capturing || !camReady) return;
     setCapturing(true);
     setPhotos([]);
-    for (let i = 0; i < grid.photoCount; i++) {
+    
+    const totalPhotos = sessions * grid.photoCount;
+    for (let i = 0; i < totalPhotos; i++) {
+      if (i > 0 && i % grid.photoCount === 0) {
+        setCountVal(null);
+        await new Promise(r => setTimeout(r, 1200)); // Jeda antar set/sesi
+      }
       for (let c = timer; c >= 1; c--) { setCountVal(c); await new Promise(r => setTimeout(r, 1000)); }
       setCountVal(null);
       flash();
       setPhotos(prev => [...prev, captureFrame()]);
-      if (i < grid.photoCount - 1) await new Promise(r => setTimeout(r, 500));
+      
+      // Jeda di sela tangkapan dalam 1 sesi (tidak berlaku jika memutus sesi)
+      if (i < totalPhotos - 1 && (i + 1) % grid.photoCount !== 0) {
+        await new Promise(r => setTimeout(r, 500));
+      }
     }
     setCapturing(false);
     setTimeout(() => setPhase('result'), 250);
-  }, [capturing, camReady, grid.photoCount, timer, captureFrame]);
+  }, [capturing, camReady, grid.photoCount, timer, captureFrame, sessions]);
 
   const togglePanel = (p: ActivePanel) => setPanel(prev => prev === p ? null : p);
 
@@ -190,7 +201,7 @@ export default function PhotoBoothPage() {
     >
 
       {/* ── HEADER ── */}
-      <header style={{
+      <header className="main-header" style={{
         height: 52, flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '0 16px',
@@ -199,32 +210,31 @@ export default function PhotoBoothPage() {
         zIndex: 50,
         position: 'relative'
       }}>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
-          <span style={{ fontWeight: 800, fontSize: 16, color: 'var(--c-ink)', letterSpacing: '-0.02em' }}>MyPhotoBooth</span>
+        <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+          <span className="logo-text" style={{ fontWeight: 800, fontSize: 16, color: 'var(--c-ink)', letterSpacing: '-0.02em' }}>MyPhotoBooth</span>
         </div>
 
-        {/* Timer chips di tengah absolut */}
-        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 5 }}>
+        {/* Timer chips flex center */}
+        <div className="timer-container" style={{ display: 'flex', gap: 5, flex: 1, justifyContent: 'center' }}>
           {COUNTDOWN_OPTIONS.map(s => (
             <button
               key={s}
               type="button"
               onClick={() => setTimer(s as 3 | 5 | 10)}
               className={`timer-chip ${timer === s ? 'active' : ''}`}
-              style={{ height: 30, padding: '0 12px', fontSize: 12, fontWeight: 700 }}
             >
-              {s}s
+              <span>{s}s</span>
             </button>
           ))}
         </div>
 
-        <div style={{ flex: 1 }} />
+        <div className="header-right-spacer" style={{ width: 80, flexShrink: 0 }} />
       </header>
 
       {/* ── BODY (flex: 1, min-height: 0 agar tidak overflow) ── */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
 
-        {/* Sidebar kiri (desktop only) */}
+          {/* Sidebar kiri (desktop only) */}
         <aside
           className="hide-mobile"
           style={{ width: 80, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 16, gap: 4, position: 'relative', zIndex: 20 }}
@@ -237,37 +247,29 @@ export default function PhotoBoothPage() {
               </button>
             ))}
           </div>
-
-          {panel && (
-            <div style={{ position: 'absolute', left: '100%', top: 16, marginLeft: 6, zIndex: 100 }}>
-              {panel === 'grid'   && <GridPanel    selectedGridId={grid.id}    onSelect={g => { setGrid(g); setPanel(null); }}  onClose={() => setPanel(null)} />}
-              {panel === 'filter' && <FilterPanel  selectedFilterId={filter.id} videoRef={videoRef} onSelect={f => { setFilter(f); setPanel(null); }} onClose={() => setPanel(null)} />}
-              {panel === 'glow'   && <BersinarPanel selectedGlowId={glow.id}   glowIntensity={glowInt} onSelectColor={setGlow} onChangeIntensity={setGlowInt} onClose={() => setPanel(null)} />}
-            </div>
-          )}
         </aside>
 
-        {/* ── TENGAH ── */}
-        <main style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '12px 10px 10px', gap: 10, overflow: 'hidden' }}>
+        {/* PANEL OVERLAY GLOBALS (Single instance, styled for Desktop OR Mobile) */}
+        {panel && (
+          <div className="panel-overlay-wrapper">
+            {panel === 'grid'   && <GridPanel    selectedGridId={grid.id}    onSelect={g => { setGrid(g); setPanel(null); }}  onClose={() => setPanel(null)} />}
+            {panel === 'filter' && <FilterPanel  selectedFilterId={filter.id} videoRef={videoRef} onSelect={f => { setFilter(f); setPanel(null); }} onClose={() => setPanel(null)} />}
+            {panel === 'glow'   && <BersinarPanel selectedGlowId={glow.id}   glowIntensity={glowInt} onSelectColor={setGlow} onChangeIntensity={setGlowInt} onClose={() => setPanel(null)} />}
+          </div>
+        )}
 
-          {/* Mobile tools */}
-          <div className="show-mobile-flex" style={{ display: 'none', gap: 6, justifyContent: 'center', width: '100%', flexShrink: 0 }}>
+        {/* ── TENGAH ── */}
+        <main style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '12px 10px 10px', gap: 10, overflow: 'hidden', position: 'relative', zIndex: 10 }}>
+
+          {/* Mobile tools (Without absolute overlay loops) */}
+          <div className="show-mobile-flex" style={{ display: 'none', gap: 6, justifyContent: 'center', width: '100%', flexShrink: 0, position: 'relative', zIndex: 11 }}>
             {tools.map(t => (
-              <button key={t.id} type="button" onClick={() => togglePanel(t.id)} className={`tool-item ${panel === t.id ? 'active' : ''}`} style={{ width: 60, height: 48 }}>
+              <button key={t.id} type="button" onClick={() => togglePanel(t.id)} className={`tool-item ${panel === t.id ? 'active' : ''}`} style={{ width: 64, height: 52 }}>
                 {t.icon}
-                <span style={{ fontSize: 9 }}>{t.label}</span>
+                <span style={{ fontSize: 10 }}>{t.label}</span>
               </button>
             ))}
           </div>
-
-          {/* Mobile panels */}
-          {panel && (
-            <div className="show-mobile-flex" style={{ display: 'none', justifyContent: 'center', width: '100%', flexShrink: 0 }}>
-              {panel === 'grid'   && <GridPanel    selectedGridId={grid.id}    onSelect={g => { setGrid(g); setPanel(null); }} onClose={() => setPanel(null)} />}
-              {panel === 'filter' && <FilterPanel  selectedFilterId={filter.id} videoRef={videoRef} onSelect={f => { setFilter(f); setPanel(null); }} onClose={() => setPanel(null)} />}
-              {panel === 'glow'   && <BersinarPanel selectedGlowId={glow.id}   glowIntensity={glowInt} onSelectColor={setGlow} onChangeIntensity={setGlowInt} onClose={() => setPanel(null)} />}
-            </div>
-          )}
 
           {/* ── Camera wrapper: flex:1 min-height:0 memastikan camera tidak melebihi tinggi body ── */}
           <div style={{ flex: 1, minHeight: 0, width: '100%', maxWidth: 720, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -322,11 +324,36 @@ export default function PhotoBoothPage() {
               {countVal !== null && <span key={countVal} className="countdown-digit">{countVal}</span>}
 
               {/* Progress pill */}
-              {photos.length > 0 && photos.length < grid.photoCount && countVal === null && (
+              {photos.length > 0 && photos.length < sessions * grid.photoCount && countVal === null && (
                 <div style={{ position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)', padding: '3px 12px', borderRadius: 100, background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: 11, fontWeight: 700, zIndex: 20 }}>
-                  {photos.length} / {grid.photoCount}
+                  <span>{photos.length} / {sessions * grid.photoCount}</span>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Session Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, width: '100%', maxWidth: 340, justifyContent: 'space-between', padding: '0 4px', marginBottom: -2 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--c-ink-3)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Sesi Foto:
+            </span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[1, 2, 3, 4, 5].map(s => (
+                <button
+                  key={s}
+                  onClick={() => setSessions(s)}
+                  style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    background: sessions === s ? 'var(--c-ink)' : 'transparent',
+                    color: sessions === s ? '#fff' : 'var(--c-ink-2)',
+                    border: sessions === s ? '1.5px solid var(--c-ink)' : '1.5px solid var(--c-border-md)',
+                    transition: 'all 0.1s'
+                  }}
+                >
+                  {s}x
+                </button>
+              ))}
             </div>
           </div>
 
@@ -338,7 +365,7 @@ export default function PhotoBoothPage() {
             style={{ width: '100%', maxWidth: 340, height: 48, fontSize: 15, gap: 8, flexShrink: 0 }}
           >
             <IcoCamera />
-            {capturing ? `Foto ${photos.length + 1} / ${grid.photoCount}…` : 'Mulai Foto'}
+            <span>{capturing ? `Foto ${photos.length + 1} / ${grid.photoCount}…` : 'Mulai Foto'}</span>
           </button>
 
           {/* Info kisi */}
@@ -352,7 +379,7 @@ export default function PhotoBoothPage() {
           className="hide-mobile"
           style={{ width: 112, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 16, overflowY: 'auto' }}
         >
-          <StripThumbs photos={photos} total={grid.photoCount} />
+          <StripThumbs photos={photos} total={sessions * grid.photoCount} />
         </aside>
       </div>
 
@@ -373,6 +400,31 @@ export default function PhotoBoothPage() {
         @media (max-width: 767px) {
           .hide-mobile { display: none !important; }
           .show-mobile-flex { display: flex !important; }
+          .header-right-spacer { display: none !important; }
+          .logo-text { font-size: 14px !important; }
+          .timer-chip { padding: 0 10px !important; font-size: 11px !important; height: 28px !important; border-width: 1px !important; }
+          
+          /* Panel Mobile Bottom Sheet */
+          .panel-overlay-wrapper {
+            position: absolute; left: 0; right: 0; bottom: 0; top: auto; z-index: 9999;
+            width: 100%; border-radius: 24px 24px 0 0;
+            background: var(--c-surface);
+            box-shadow: 0 -4px 32px rgba(0,0,0,0.15);
+            animation: slide-up 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+          }
+          .panel-overlay-wrapper .popup-panel {
+            width: 100% !important; max-width: none !important;
+            border: none !important; box-shadow: none !important;
+            border-radius: 24px 24px 0 0 !important;
+            background: transparent !important;
+          }
+        }
+        @media (min-width: 768px) {
+          .timer-chip { height: 30px; padding: 0 12px; font-size: 12px; font-weight: 700; border-width: 1.5px; }
+          /* Panel Desktop Sidebar Floating */
+          .panel-overlay-wrapper {
+            position: absolute; left: 86px; top: 16px; z-index: 100;
+          }
         }
       `}</style>
     </div>

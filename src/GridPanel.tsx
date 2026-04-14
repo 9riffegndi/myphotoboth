@@ -30,7 +30,7 @@ function GridSVG({ layout }: { layout: GridLayout }) {
 
 export default function GridPanel({ selectedGridId, onSelect, onClose }: Props) {
   return (
-    <div className="popup-panel" style={{ width: 300   }}>
+    <div className="popup-panel" style={{ width: 300, maxWidth: '92vw' }}>
       {/* Header */}
       <div
         className="flex items-center justify-between px-4 py-3 "
