@@ -543,7 +543,7 @@ export default function ResultPanel({
         zIndex: 50,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <img src="/logo-intarabox.png" alt="IntaraBox" style={{ width: 24, height: 24, objectFit: 'contain' }} />
+          <img src="/logo-intarabox.png" alt="IntaraBox" style={{ width: 32, height: 32, objectFit: 'contain' }} />
           <a href="/" className="logo-text" style={{ fontWeight: 800, fontSize: 16, color: 'var(--c-ink)', letterSpacing: '-0.02em', textDecoration: 'none' }}>IntaraBox</a>
         </div>
 
