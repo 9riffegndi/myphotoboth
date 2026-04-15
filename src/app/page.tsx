@@ -207,9 +207,16 @@ export default function PhotoBoothPage() {
 
   /* ── captureFrame ── */
   const captureFrame = useCallback((): CapturedPhoto => {
-    const W = 1280, H = 960;
-
     const video = videoRef.current!;
+    const vW = Math.max(1, video.videoWidth || 1280);
+    const vH = Math.max(1, video.videoHeight || 960);
+    const ua = navigator.userAgent.toLowerCase();
+    const isMobile = /android|iphone|ipad|ipod|mobile/.test(ua);
+    const targetLong = isMobile ? 1600 : 1920;
+    const scale = Math.min(1, targetLong / Math.max(vW, vH));
+    const W = Math.round(vW * scale);
+    const H = Math.round(vH * scale);
+
     const tmp = document.createElement('canvas');
     tmp.width = W; tmp.height = H;
     const ctx = tmp.getContext('2d')!;
@@ -616,3 +623,4 @@ export default function PhotoBoothPage() {
     </div>
   );
 }
+

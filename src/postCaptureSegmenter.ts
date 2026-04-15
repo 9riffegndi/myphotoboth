@@ -68,13 +68,22 @@ function getInferMaxSide(): number {
   const ua = navigator.userAgent.toLowerCase();
   const isMobile = /android|iphone|ipad|ipod|mobile/.test(ua);
 
-  if (isMobile || lowMemory || lowCpu) return 640;
-  return 896;
+  if (isMobile) return lowMemory || lowCpu ? 768 : 960;
+  if (lowMemory || lowCpu) return 896;
+  return 1152;
 }
 
 function isMobileDevice(): boolean {
   const ua = navigator.userAgent.toLowerCase();
   return /android|iphone|ipad|ipod|mobile/.test(ua);
+}
+
+function hardenAlpha(alpha: Float32Array, power: number): Float32Array {
+  const out = new Float32Array(alpha.length);
+  for (let i = 0; i < alpha.length; i++) {
+    out[i] = Math.max(0, Math.min(1, Math.pow(alpha[i], power)));
+  }
+  return out;
 }
 
 function createCanvas(w: number, h: number): HTMLCanvasElement {
@@ -512,7 +521,7 @@ async function segmentWithTasks(segmenter: ImageSegmenter, sourceCanvas: HTMLCan
 async function segmentWithLegacySelfie(sourceCanvas: HTMLCanvasElement): Promise<SegmentMaskResult | null> {
   const seg = await waitWithTimeout(getLegacySelfieSegmenter(), 10000);
 
-  const inferMax = Math.min(640, getInferMaxSide());
+  const inferMax = Math.max(768, getInferMaxSide());
   const w = sourceCanvas.width;
   const h = sourceCanvas.height;
   const scale = Math.min(1, inferMax / Math.max(w, h));
@@ -739,6 +748,11 @@ async function processOne(photo: CapturedPhoto, option: VirtualBgOption): Promis
       refined = blurMask(rescued, maskW, maskH, 1, 1);
     }
 
+    // Perjelas alpha di mobile legacy agar subjek tidak terlihat lembek/kabut.
+    if (legacyMode) {
+      refined = hardenAlpha(refined, 0.86);
+    }
+
     const maskImage = maskCtx.createImageData(maskW, maskH);
     for (let i = 0; i < refined.length; i++) {
       const a = Math.round(refined[i] * 255);
@@ -757,7 +771,10 @@ async function processOne(photo: CapturedPhoto, option: VirtualBgOption): Promis
     }
     featherCtx.imageSmoothingEnabled = true;
     featherCtx.imageSmoothingQuality = 'high';
-    featherCtx.filter = `blur(${option.type === 'image' ? 4 : 6}px)`;
+    const featherPx = legacyMode
+      ? (option.type === 'image' ? 2 : 3)
+      : (option.type === 'image' ? 4 : 6);
+    featherCtx.filter = `blur(${featherPx}px)`;
     featherCtx.drawImage(maskCanvas, 0, 0, maskW, maskH, 0, 0, w, h);
     featherCtx.filter = 'none';
 
@@ -775,7 +792,7 @@ async function processOne(photo: CapturedPhoto, option: VirtualBgOption): Promis
 
     return {
       ...photo,
-      dataUrl: outCanvas.toDataURL('image/jpeg', 0.95),
+      dataUrl: outCanvas.toDataURL('image/jpeg', 0.98),
     };
   } catch {
     return photo;
