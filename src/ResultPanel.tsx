@@ -389,8 +389,8 @@ export const CollageCanvas = forwardRef(({ photos, previewFilterCss, frame, cust
       const h = rowSpan * cellH + (rowSpan - 1) * GAP;
 
       const img = await loadImg(photo.dataUrl);
-      const combinedFilter = [photo.filter, previewFilterCss].filter(f => f && f !== 'none').join(' ').trim() || 'none';
-      if (img) drawCover(ctx, img, x, y, w, h, combinedFilter, border.photoRadius * (refDim / 1000), shape);
+      const finalPreviewFilter = previewFilterCss && previewFilterCss !== 'none' ? previewFilterCss : 'none';
+      if (img) drawCover(ctx, img, x, y, w, h, finalPreviewFilter, border.photoRadius * (refDim / 1000), shape);
     }
 
     // 4. Polaroid label

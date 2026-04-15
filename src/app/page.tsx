@@ -133,6 +133,7 @@ export default function PhotoBoothPage() {
       }
 
       const tries: MediaStreamConstraints[] = [
+        { video: { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false },
         { video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } }, audio: false },
         { video: { facingMode: 'user' }, audio: false },
         { video: true, audio: false },
@@ -228,8 +229,8 @@ export default function PhotoBoothPage() {
     ctx.drawImage(video, sx, sy, sw, sh, 0, 0, W, H);
     return {
       id: `p${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      dataUrl: tmp.toDataURL('image/jpeg', 0.95),
-      filter: filter.cssFilter,
+      dataUrl: tmp.toDataURL('image/jpeg', 0.98),
+      filter: 'none',
       timestamp: Date.now(),
     };
   }, [filter]);
