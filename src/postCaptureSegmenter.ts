@@ -425,6 +425,54 @@ function estimateForegroundCoverage(alpha: Float32Array): number {
   return count / Math.max(1, alpha.length);
 }
 
+function countSmallForegroundIslands(alpha: Float32Array, w: number, h: number): number {
+  const bin = new Uint8Array(w * h);
+  for (let i = 0; i < bin.length; i++) {
+    bin[i] = alpha[i] > 0.52 ? 1 : 0;
+  }
+
+  const comp = labelComponents(bin, w, h);
+  let largest = 0;
+  for (let i = 1; i < comp.areas.length; i++) {
+    if (comp.areas[i] > largest) largest = comp.areas[i];
+  }
+  if (largest <= 0) return 0;
+
+  const smallThreshold = Math.max(16, Math.floor(largest * 0.04));
+  let noiseCount = 0;
+  for (let i = 1; i < comp.areas.length; i++) {
+    if (comp.areas[i] > 0 && comp.areas[i] <= smallThreshold) noiseCount++;
+  }
+  return noiseCount;
+}
+
+function scoreMaskQuality(alpha: Float32Array, w: number, h: number): number {
+  const centerBias = evaluateMaskCenterBias(alpha, w, h);
+  const coverage = estimateForegroundCoverage(alpha);
+  const noiseIslands = countSmallForegroundIslands(alpha, w, h);
+
+  const lowCovPenalty = coverage < 0.03 ? (0.03 - coverage) * 12 : 0;
+  const highCovPenalty = coverage > 0.92 ? (coverage - 0.92) * 8 : 0;
+  const noisePenalty = Math.min(0.9, noiseIslands * 0.04);
+
+  return centerBias * 1.35 - lowCovPenalty - highCovPenalty - noisePenalty;
+}
+
+function secondStageCleanup(alpha: Float32Array, w: number, h: number, legacyMode: boolean): Float32Array {
+  const copy = new Float32Array(alpha.length);
+  copy.set(alpha);
+  let out: Float32Array = copy;
+  out = removeSpecklesAndFillHoles(out, w, h);
+  out = blurMask(out, w, h, 1, 1);
+  out = hardenAlpha(out, legacyMode ? 0.92 : 0.95);
+
+  for (let i = 0; i < out.length; i++) {
+    if (out[i] < 0.05) out[i] = 0;
+    else if (out[i] > 0.985) out[i] = 1;
+  }
+  return out;
+}
+
 async function getSegmenter(): Promise<ImageSegmenter> {
   if (!segmenterPromise) {
     segmenterPromise = (async () => {
@@ -751,6 +799,16 @@ async function processOne(photo: CapturedPhoto, option: VirtualBgOption): Promis
     // Perjelas alpha di mobile legacy agar subjek tidak terlihat lembek/kabut.
     if (legacyMode) {
       refined = hardenAlpha(refined, 0.86);
+    }
+
+    // Stage-2 cleanup: hanya dipakai jika kualitas tidak turun.
+    const stage1 = refined;
+    const stage1Score = scoreMaskQuality(stage1, maskW, maskH);
+    const stage2 = secondStageCleanup(stage1, maskW, maskH, legacyMode);
+    const stage2Coverage = estimateForegroundCoverage(stage2);
+    const stage2Score = scoreMaskQuality(stage2, maskW, maskH);
+    if (stage2Coverage > 0.03 && stage2Coverage < 0.9 && stage2Score >= stage1Score - 0.08) {
+      refined = stage2;
     }
 
     const maskImage = maskCtx.createImageData(maskW, maskH);
