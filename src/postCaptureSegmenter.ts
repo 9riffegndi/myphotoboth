@@ -18,6 +18,7 @@ type SegmentMaskResult = {
   catData: Uint8Array | null;
   maskW: number;
   maskH: number;
+  source: 'tasks' | 'legacy';
 };
 
 function estimateCoverageRaw(alpha: Float32Array, th = 0.5): number {
@@ -344,8 +345,13 @@ function refineMask(
   confData: Float32Array,
   catData: Uint8Array | null,
   maskW: number,
-  maskH: number
+  maskH: number,
+  opts?: { aggressive?: boolean; low?: number; high?: number }
 ): Float32Array {
+  const aggressive = opts?.aggressive ?? true;
+  const low = opts?.low ?? COVERAGE_LOW;
+  const high = opts?.high ?? COVERAGE_HIGH;
+
   const alpha = new Float32Array(confData.length);
 
   for (let i = 0; i < confData.length; i++) {
@@ -356,7 +362,7 @@ function refineMask(
       if (cat === 0) v *= 0.78;
       else v = Math.min(1, v * 1.04 + 0.01);
     }
-    alpha[i] = softStep(v, COVERAGE_LOW, COVERAGE_HIGH);
+    alpha[i] = softStep(v, low, high);
   }
 
   let smoothed = blurMask(alpha, maskW, maskH, 1, 2);
@@ -389,7 +395,9 @@ function refineMask(
     smoothed = filled;
   }
 
-  smoothed = removeSpecklesAndFillHoles(smoothed, maskW, maskH);
+  if (aggressive) {
+    smoothed = removeSpecklesAndFillHoles(smoothed, maskW, maskH);
+  }
   smoothed = blurMask(smoothed, maskW, maskH, 1, 1);
 
   for (let i = 0; i < smoothed.length; i++) {
@@ -495,6 +503,7 @@ async function segmentWithTasks(segmenter: ImageSegmenter, sourceCanvas: HTMLCan
     catData: category ? category.getAsUint8Array() : null,
     maskW: confidence.width,
     maskH: confidence.height,
+    source: 'tasks',
   };
   result.close();
   return out;
@@ -554,6 +563,7 @@ async function segmentWithLegacySelfie(sourceCanvas: HTMLCanvasElement): Promise
     catData: null,
     maskW: inferW,
     maskH: inferH,
+    source: 'legacy',
   };
 }
 
@@ -682,7 +692,8 @@ async function processOne(photo: CapturedPhoto, option: VirtualBgOption): Promis
 
     if (!segMask) return photo;
 
-    const { confData, catData, maskW, maskH } = segMask;
+    const { confData, catData, maskW, maskH, source } = segMask;
+    const legacyMode = source === 'legacy';
 
     const maskCanvas = createCanvas(maskW, maskH);
     const maskCtx = maskCanvas.getContext('2d');
@@ -690,24 +701,42 @@ async function processOne(photo: CapturedPhoto, option: VirtualBgOption): Promis
       return photo;
     }
 
-    let refined = refineMask(confData, catData, maskW, maskH);
+    let refined = legacyMode
+      ? refineMask(confData, catData, maskW, maskH, { aggressive: false, low: 0.16, high: 0.58 })
+      : refineMask(confData, catData, maskW, maskH, { aggressive: true });
 
     // Fallback best-practice: jika area subjek terlalu kecil, abaikan category mask
     // dan pakai confidence-only agar orang tidak hilang total.
-    const coverage = estimateForegroundCoverage(refined);
-    if (coverage < 0.02) {
-      refined = refineMask(confData, null, maskW, maskH);
+    let coverage = estimateForegroundCoverage(refined);
+    if (coverage < 0.04) {
+      refined = legacyMode
+        ? refineMask(confData, null, maskW, maskH, { aggressive: false, low: 0.12, high: 0.5 })
+        : refineMask(confData, null, maskW, maskH, { aggressive: false, low: 0.18, high: 0.62 });
+      coverage = estimateForegroundCoverage(refined);
     }
 
     // Safety net: jika mask hampir full foreground, coba balik polaritas.
     if (coverage > 0.98) {
       const inv = new Float32Array(confData.length);
       for (let i = 0; i < confData.length; i++) inv[i] = 1 - confData[i];
-      const invRefined = refineMask(inv, null, maskW, maskH);
+      const invRefined = legacyMode
+        ? refineMask(inv, null, maskW, maskH, { aggressive: false, low: 0.12, high: 0.5 })
+        : refineMask(inv, null, maskW, maskH, { aggressive: false, low: 0.18, high: 0.62 });
       const invCov = estimateForegroundCoverage(invRefined);
       if (invCov > 0.02 && invCov < 0.9) {
         refined = invRefined;
+        coverage = invCov;
       }
+    }
+
+    // Rescue terakhir: jaga agar subjek tetap ada pada legacy mobile.
+    if (legacyMode && coverage < 0.03) {
+      const rescued = new Float32Array(refined.length);
+      for (let i = 0; i < refined.length; i++) {
+        const boosted = Math.max(refined[i], confData[i] * 0.88);
+        rescued[i] = softStep(boosted, 0.16, 0.64);
+      }
+      refined = blurMask(rescued, maskW, maskH, 1, 1);
     }
 
     const maskImage = maskCtx.createImageData(maskW, maskH);
