@@ -5,6 +5,7 @@ import type { CapturedPhoto, VirtualBgOption } from './types';
 
 const TASKS_WASM_PATH = '/mediapipe/tasks-vision/wasm';
 const SEGMENTER_MODEL_PATH = '/models/selfie_segmenter.tflite';
+const LEGACY_SELFIE_BASE = '/mediapipe/selfie_segmentation';
 
 const COVERAGE_LOW = 0.28;
 const COVERAGE_HIGH = 0.72;
@@ -28,6 +29,11 @@ function getInferMaxSide(): number {
 
   if (isMobile || lowMemory || lowCpu) return 640;
   return 896;
+}
+
+function isMobileDevice(): boolean {
+  const ua = navigator.userAgent.toLowerCase();
+  return /android|iphone|ipad|ipod|mobile/.test(ua);
 }
 
 function createCanvas(w: number, h: number): HTMLCanvasElement {
@@ -399,14 +405,14 @@ async function getSegmenter(): Promise<ImageSegmenter> {
 async function getLegacySelfieSegmenter(): Promise<any> {
   if (!legacySelfiePromise) {
     legacySelfiePromise = (async () => {
-      const scriptUrl = 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js';
+      const scriptUrl = `${LEGACY_SELFIE_BASE}/selfie_segmentation.js`;
       await ensureScript(scriptUrl);
 
       const Ctor = (window as any).SelfieSegmentation;
       if (!Ctor) throw new Error('SelfieSegmentation not found on window');
 
       const seg = new Ctor({
-        locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`,
+        locateFile: (file: string) => `${LEGACY_SELFIE_BASE}/${file}`,
       });
       seg.setOptions({ modelSelection: 1 });
       return seg;
@@ -599,13 +605,26 @@ async function processOne(photo: CapturedPhoto, option: VirtualBgOption): Promis
     inferCtx.drawImage(sourceCanvas, 0, 0, inferW, inferH);
 
     let segMask: SegmentMaskResult | null = null;
-    try {
-      segMask = await segmentWithTasks(segmenter, sourceCanvas);
-    } catch {
-      segMask = null;
+    const mobile = isMobileDevice();
+
+    // Prioritas mobile: legacy selfie dulu (lebih kompatibel di Android/iPhone).
+    if (mobile) {
+      try {
+        segMask = await segmentWithLegacySelfie(sourceCanvas);
+      } catch {
+        segMask = null;
+      }
     }
 
     if (!segMask) {
+      try {
+        segMask = await segmentWithTasks(segmenter, sourceCanvas);
+      } catch {
+        segMask = null;
+      }
+    }
+
+    if (!segMask && !mobile) {
       try {
         segMask = await segmentWithLegacySelfie(sourceCanvas);
       } catch {
