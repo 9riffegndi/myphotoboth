@@ -29,7 +29,7 @@ function loadImg(src: string): Promise<HTMLImageElement | null> {
   if (imgCache.has(src)) return Promise.resolve(imgCache.get(src)!);
   return new Promise(res => {
     const img = new Image();
-    img.onload  = () => { imgCache.set(src, img); res(img); };
+    img.onload = () => { imgCache.set(src, img); res(img); };
     img.onerror = () => res(null);
     img.src = src;
   });
@@ -78,18 +78,18 @@ function drawCover(
   ctx.save();
   ctx.beginPath();
   const r = Math.min(radius ?? 0, dw / 2, dh / 2);
-  
+
   if (shape === 'oval') {
     ctx.ellipse(dx + dw / 2, dy + dh / 2, dw / 2, dh / 2, 0, 0, Math.PI * 2);
   } else if (shape === 'hexagon') {
     const cx = dx + dw / 2; const cy = dy + dh / 2;
     const rX = dw / 2; const rY = dh / 2;
     for (let i = 0; i < 6; i++) {
-       const theta = (Math.PI / 3) * i - Math.PI / 2;
-       const px = cx + rX * Math.cos(theta);
-       const py = cy + rY * Math.sin(theta);
-       if (i === 0) ctx.moveTo(px, py);
-       else ctx.lineTo(px, py);
+      const theta = (Math.PI / 3) * i - Math.PI / 2;
+      const px = cx + rX * Math.cos(theta);
+      const py = cy + rY * Math.sin(theta);
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
     }
   } else if (shape === 'love') {
     const x = dx, y = dy;
@@ -261,14 +261,14 @@ function drawCornerAccents(
   const S = Math.round(minDim * 0.17);
   const M = Math.round(S * 0.40);
 
-  const isPortrait  = CH > CW * 1.3;
+  const isPortrait = CH > CW * 1.3;
   const isLandscape = CW > CH * 1.3;
 
   const pts: [number, number, number][] = [
-    [0, 0,   -22], [1, 0,   22],
-    [0, 1,    18], [1, 1,  -18],
-    ...(isPortrait  ? [[0, 0.5, -12], [1, 0.5, 12]]   as [number,number,number][] : []),
-    ...(isLandscape ? [[0.5, 0,   5], [0.5, 1, -5]]   as [number,number,number][] : []),
+    [0, 0, -22], [1, 0, 22],
+    [0, 1, 18], [1, 1, -18],
+    ...(isPortrait ? [[0, 0.5, -12], [1, 0.5, 12]] as [number, number, number][] : []),
+    ...(isLandscape ? [[0.5, 0, 5], [0.5, 1, -5]] as [number, number, number][] : []),
   ];
 
   pts.forEach(([fx, fy, angle], i) => {
@@ -358,30 +358,30 @@ export const CollageCanvas = forwardRef(({ photos, frame, customFrameHex, border
     }
 
     // 3. Foto
-    const thickMult   = borderThick / 50; 
-    const PAD         = Math.round(border.paddingRatio * refDim * thickMult);
-    const GAP         = Math.round(border.gapRatio * refDim * thickMult);
-    const EXTRA_BOT   = border.id === 'polaroid' ? Math.round(PAD * 1.9) : 0;
-    const innerW      = CW - PAD * 2;
-    const innerH      = CH - PAD * 2 - EXTRA_BOT;
-    
+    const thickMult = borderThick / 50;
+    const PAD = Math.round(border.paddingRatio * refDim * thickMult);
+    const GAP = Math.round(border.gapRatio * refDim * thickMult);
+    const EXTRA_BOT = border.id === 'polaroid' ? Math.round(PAD * 1.9) : 0;
+    const innerW = CW - PAD * 2;
+    const innerH = CH - PAD * 2 - EXTRA_BOT;
+
     const totalColGaps = (currentCols - 1) * GAP;
     const totalRowGaps = (currentRows - 1) * GAP;
 
     for (let i = 0; i < Math.min(photos.length, currentSlots.length); i++) {
-      const slot  = currentSlots[i];
+      const slot = currentSlots[i];
       const photo = photos[i];
       if (!photo) continue;
 
-      const colIdx  = Math.round((slot.x / 100) * currentCols);
-      const rowIdx  = Math.round((slot.y / 100) * currentRows);
+      const colIdx = Math.round((slot.x / 100) * currentCols);
+      const rowIdx = Math.round((slot.y / 100) * currentRows);
       const colSpan = Math.round((slot.w / 100) * currentCols);
       const rowSpan = Math.round((slot.h / 100) * currentRows);
 
-      const cellW   = (innerW - totalColGaps) / currentCols;
-      const cellH   = (innerH - totalRowGaps) / currentRows;
-      const x = PAD + colIdx  * (cellW + GAP);
-      const y = PAD + rowIdx  * (cellH + GAP);
+      const cellW = (innerW - totalColGaps) / currentCols;
+      const cellH = (innerH - totalRowGaps) / currentRows;
+      const x = PAD + colIdx * (cellW + GAP);
+      const y = PAD + rowIdx * (cellH + GAP);
       const w = colSpan * cellW + (colSpan - 1) * GAP;
       const h = rowSpan * cellH + (rowSpan - 1) * GAP;
 
@@ -392,7 +392,7 @@ export const CollageCanvas = forwardRef(({ photos, frame, customFrameHex, border
     // 4. Polaroid label
     if (border.id === 'polaroid' && EXTRA_BOT > 0) {
       const d = new Date();
-      const label = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+      const label = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
       ctx.font = `italic ${Math.round(EXTRA_BOT * 0.38)}px 'Times New Roman', serif`;
       ctx.fillStyle = dark ? '#fff' : '#666';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -411,7 +411,7 @@ export const CollageCanvas = forwardRef(({ photos, frame, customFrameHex, border
     ctx.textAlign = 'right';
     ctx.textBaseline = 'bottom';
     const wmPad = Math.max(8, Math.round(refDim * 0.015));
-    ctx.fillText("buatan https://www.ariefgunadi.my.id/", CW - wmPad, CH - wmPad);
+    ctx.fillText("", CW - wmPad, CH - wmPad); //kasih watermark disini 
   }, [photos, frame, customFrameHex, border, decorCat, tileLevel, patOpacity, showCorners, shape, borderThick, CW, CH, refDim, currentCols, currentRows, currentSlots]);
 
   useEffect(() => { drawCanvas(); }, [drawCanvas]);
@@ -426,24 +426,24 @@ export const CollageCanvas = forwardRef(({ photos, frame, customFrameHex, border
 /* ═══════════════════════════════════════════════
    RESULT PANEL MAIN
 ═══════════════════════════════════════════════ */
-export default function ResultPanel({ 
-  capturedPhotos, selectedGrid, onRetake, 
+export default function ResultPanel({
+  capturedPhotos, selectedGrid, onRetake,
   initialFrame, initialCustomFrame, initialBorder,
   initialShape, initialBorderThick, initialDecorCat,
   initialTileLevel, initialPatOpacity, initialShowCorners
 }: Props) {
   // State kontrol
-  const [orient, setOrient]             = useState<'auto' | 'portrait' | 'landscape'>('auto');
-  const [frame, setFrame]               = useState<FrameColor>(initialFrame);
+  const [orient, setOrient] = useState<'auto' | 'portrait' | 'landscape'>('auto');
+  const [frame, setFrame] = useState<FrameColor>(initialFrame);
   const [customFrameHex, setCustomFrameHex] = useState(initialCustomFrame);
-  const [border, setBorder]             = useState<BorderStyle>(initialBorder);
-  const [decorCat, setDecorCat]         = useState<StickerCategory | null>(initialDecorCat);
-  const [tileLevel, setTileLevel]       = useState(initialTileLevel);
-  const [patOpacity, setPatOpacity]     = useState(initialPatOpacity);
-  const [showCorners, setShowCorners]   = useState(initialShowCorners);
-  const [downloading, setDownloading]   = useState(false);
-  const [shape, setShape]               = useState<string>(initialShape);
-  const [borderThick, setBorderThick]   = useState(initialBorderThick);
+  const [border, setBorder] = useState<BorderStyle>(initialBorder);
+  const [decorCat, setDecorCat] = useState<StickerCategory | null>(initialDecorCat);
+  const [tileLevel, setTileLevel] = useState(initialTileLevel);
+  const [patOpacity, setPatOpacity] = useState(initialPatOpacity);
+  const [showCorners, setShowCorners] = useState(initialShowCorners);
+  const [downloading, setDownloading] = useState(false);
+  const [shape, setShape] = useState<string>(initialShape);
+  const [borderThick, setBorderThick] = useState(initialBorderThick);
 
   // Group photos into sessions
   const chunks = useMemo(() => {
@@ -466,16 +466,16 @@ export default function ResultPanel({
 
   const isPortraitNow = CH > CW;
   const isSquareNow = CH === CW;
-  
+
   let doSwap = false;
   if (orient === 'portrait' && !isPortraitNow) doSwap = true;
   else if (orient === 'landscape' && (isPortraitNow || isSquareNow)) doSwap = true;
 
   if (doSwap) {
     if (orient === 'landscape' && isSquareNow) {
-      CW = CH * (4/3);
+      CW = CH * (4 / 3);
     } else if (orient === 'portrait' && isSquareNow) {
-      CH = CW * (4/3);
+      CH = CW * (4 / 3);
     } else {
       if (currentCols !== currentRows) {
         const origCellW = CW / currentCols;
@@ -509,17 +509,17 @@ export default function ResultPanel({
   const downloadAll = async () => {
     setDownloading(true);
     for (let i = 0; i < chunks.length; i++) {
-       const ref = collageRefs.current[i];
-       if (ref) {
-         const dataUrl = ref.exportCanvas();
-         if (dataUrl) {
-           const link = document.createElement('a');
-           link.download = `photobooth-${Date.now()}-${i+1}.png`;
-           link.href = dataUrl;
-           link.click();
-         }
-       }
-       await new Promise(r => setTimeout(r, 400));
+      const ref = collageRefs.current[i];
+      if (ref) {
+        const dataUrl = ref.exportCanvas();
+        if (dataUrl) {
+          const link = document.createElement('a');
+          link.download = `photobooth-${Date.now()}-${i + 1}.png`;
+          link.href = dataUrl;
+          link.click();
+        }
+      }
+      await new Promise(r => setTimeout(r, 400));
     }
     setDownloading(false);
   };
@@ -639,28 +639,28 @@ export default function ResultPanel({
               className="btn btn-primary"
               style={{ flex: 1.5, height: 44, fontSize: 13, gap: 6 }}
             >
-            {downloading ? (
-              <>
-                <svg style={{ animation: 'spin 0.8s linear infinite' }} width="15" height="15" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.25)" strokeWidth="3" />
-                  <path d="M12 2a10 10 0 0110 10" stroke="white" strokeWidth="3" strokeLinecap="round" />
-                </svg>
-                <span>Menyimpan…</span>
-              </>
-            ) : (
-              <>
-                <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-                  <path d="M8 11L3 6m5 5l5-5M8 11V2" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M2 13h12" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
-                </svg>
-                <span>Download Semua</span>
-              </>
-            )}
-          </button>
+              {downloading ? (
+                <>
+                  <svg style={{ animation: 'spin 0.8s linear infinite' }} width="15" height="15" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.25)" strokeWidth="3" />
+                    <path d="M12 2a10 10 0 0110 10" stroke="white" strokeWidth="3" strokeLinecap="round" />
+                  </svg>
+                  <span>Menyimpan…</span>
+                </>
+              ) : (
+                <>
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                    <path d="M8 11L3 6m5 5l5-5M8 11V2" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M2 13h12" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+                  </svg>
+                  <span>Download Semua</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* ── Kanan: Panel kontrol (bisa scroll sendiri) ── */}
+        {/* ── Kanan: Panel kontrol (bisa scroll sendiri) ── */}
         <div
           className="no-scrollbar controls-col"
           style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '16px 16px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}
@@ -706,7 +706,7 @@ export default function ResultPanel({
             {/* Shape Buttons */}
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
               {['rect', 'oval', 'love', 'hexagon', 'star', 'triangle', 'diamond', 'arch', 'ticket'].map(s => {
-                const labels: Record<string, string> = { 
+                const labels: Record<string, string> = {
                   rect: 'Kotak', oval: 'Oval', love: 'Love', hexagon: 'Segi Enam',
                   star: 'Bintang', triangle: 'Segitiga', diamond: 'Ketupat', arch: 'Kubah', ticket: 'Tiket'
                 };
@@ -717,7 +717,7 @@ export default function ResultPanel({
                 );
               })}
             </div>
-            
+
             {/* Ketebalan */}
             <div>
               <LabelRow left="Ketebalan Jarak Bingkai" right={`${Math.round(borderThick * 2)}%`} />
@@ -755,9 +755,9 @@ export default function ResultPanel({
 
                 {/* Kepadatan pola */}
                 <div style={{ marginBottom: 12 }}>
-                  <LabelRow left="Kepadatan Pola" right={['Padat','','Sedang','','Jarang'][tileLevel-1]} />
+                  <LabelRow left="Kepadatan Pola" right={['Padat', '', 'Sedang', '', 'Jarang'][tileLevel - 1]} />
                   <input type="range" min={1} max={5} step={1} value={tileLevel} onChange={e => setTileLevel(Number(e.target.value))} className="range-slider"
-                    style={{ background: `linear-gradient(to right, var(--c-ink) ${(tileLevel-1)*25}%, rgba(0,0,0,0.12) ${(tileLevel-1)*25}%)` }} />
+                    style={{ background: `linear-gradient(to right, var(--c-ink) ${(tileLevel - 1) * 25}%, rgba(0,0,0,0.12) ${(tileLevel - 1) * 25}%)` }} />
                 </div>
 
                 {/* Opacity pola */}
