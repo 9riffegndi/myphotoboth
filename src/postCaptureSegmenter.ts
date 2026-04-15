@@ -20,6 +20,46 @@ type SegmentMaskResult = {
   maskH: number;
 };
 
+function estimateCoverageRaw(alpha: Float32Array, th = 0.5): number {
+  let count = 0;
+  for (let i = 0; i < alpha.length; i++) {
+    if (alpha[i] > th) count++;
+  }
+  return count / Math.max(1, alpha.length);
+}
+
+function evaluateMaskCenterBias(alpha: Float32Array, w: number, h: number): number {
+  const cx0 = Math.floor(w * 0.25);
+  const cx1 = Math.ceil(w * 0.75);
+  const cy0 = Math.floor(h * 0.18);
+  const cy1 = Math.ceil(h * 0.86);
+
+  let centerSum = 0;
+  let centerCount = 0;
+  let edgeSum = 0;
+  let edgeCount = 0;
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const v = alpha[y * w + x];
+      const inCenter = x >= cx0 && x < cx1 && y >= cy0 && y < cy1;
+      if (inCenter) {
+        centerSum += v;
+        centerCount++;
+      } else {
+        edgeSum += v;
+        edgeCount++;
+      }
+    }
+  }
+
+  const centerMean = centerSum / Math.max(1, centerCount);
+  const edgeMean = edgeSum / Math.max(1, edgeCount);
+  const coverage = estimateCoverageRaw(alpha, 0.5);
+  const coveragePenalty = coverage < 0.02 || coverage > 0.96 ? 0.25 : 0;
+  return centerMean - edgeMean - coveragePenalty;
+}
+
 function getInferMaxSide(): number {
   const nav = navigator as Navigator & { deviceMemory?: number };
   const lowMemory = typeof nav.deviceMemory === 'number' && nav.deviceMemory <= 4;
@@ -494,15 +534,23 @@ async function segmentWithLegacySelfie(sourceCanvas: HTMLCanvasElement): Promise
   maskCtx.drawImage(result.segmentationMask, 0, 0, inferW, inferH);
   const img = maskCtx.getImageData(0, 0, inferW, inferH);
   const confData = new Float32Array(inferW * inferH);
+  const confInv = new Float32Array(inferW * inferH);
 
   for (let i = 0; i < confData.length; i++) {
     const p = i * 4;
     const luma = (img.data[p] * 0.299 + img.data[p + 1] * 0.587 + img.data[p + 2] * 0.114) / 255;
     confData[i] = Math.max(0, Math.min(1, luma));
+    confInv[i] = 1 - confData[i];
   }
 
+  // Sebagian browser/device membaca polarity mask terbalik.
+  // Pilih versi yang lebih masuk akal: subjek cenderung di area tengah frame.
+  const scoreNormal = evaluateMaskCenterBias(confData, inferW, inferH);
+  const scoreInv = evaluateMaskCenterBias(confInv, inferW, inferH);
+  const finalConf = scoreInv > scoreNormal ? confInv : confData;
+
   return {
-    confData,
+    confData: finalConf,
     catData: null,
     maskW: inferW,
     maskH: inferH,
@@ -649,6 +697,17 @@ async function processOne(photo: CapturedPhoto, option: VirtualBgOption): Promis
     const coverage = estimateForegroundCoverage(refined);
     if (coverage < 0.02) {
       refined = refineMask(confData, null, maskW, maskH);
+    }
+
+    // Safety net: jika mask hampir full foreground, coba balik polaritas.
+    if (coverage > 0.98) {
+      const inv = new Float32Array(confData.length);
+      for (let i = 0; i < confData.length; i++) inv[i] = 1 - confData[i];
+      const invRefined = refineMask(inv, null, maskW, maskH);
+      const invCov = estimateForegroundCoverage(invRefined);
+      if (invCov > 0.02 && invCov < 0.9) {
+        refined = invRefined;
+      }
     }
 
     const maskImage = maskCtx.createImageData(maskW, maskH);
