@@ -569,6 +569,37 @@ export default function PhotoBoothPage() {
               {/* Countdown */}
               {countVal !== null && <span key={countVal} className="countdown-digit">{countVal}</span>}
 
+              {/* Center disclaimer: UI overlay only (tidak ikut ke hasil capture) */}
+              {virtualBgEnabled && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: '50%',
+                    top: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: 'min(88%, 460px)',
+                    padding: 'clamp(8px, 1.8vw, 12px) clamp(10px, 2.3vw, 16px)',
+                    // borderRadius: 12,
+                    // background: 'linear-gradient(180deg, rgba(0,0,0,0.28), rgba(0,0,0,0.38))',
+                    // border: '1px solid rgba(255,255,255,0.25)',
+                    color: 'rgba(255,255,255,1)',
+                    textAlign: 'center',
+                    zIndex: 24,
+                    pointerEvents: 'none',
+                    // backdropFilter: 'blur(5px)',
+                    // WebkitBackdropFilter: 'blur(5px)',
+                    // boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+                  }}
+                >
+                  <div style={{ fontSize: 'clamp(11px, 2.1vw, 13px)', fontWeight: 700, letterSpacing: '0.01em' }}>
+                    Best results with a plain background
+                  </div>
+                  <div style={{ marginTop: 3, fontSize: 'clamp(10px, 1.9vw, 12px)', fontWeight: 600, color: 'rgba(255,255,255,1)' }}>
+                    Hasil terbaik jika latar belakang polos
+                  </div>
+                </div>
+              )}
+
               {/* Progress pill */}
               {photos.length > 0 && photos.length < sessions * grid.photoCount && countVal === null && (
                 <div style={{ position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)', padding: '3px 12px', borderRadius: 100, background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: 11, fontWeight: 700, zIndex: 20 }}>
