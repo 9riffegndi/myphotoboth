@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { FlipCardStack } from './FlipCard';
 import { FRAME_COLORS, BORDER_STYLES, STICKER_CATEGORIES } from '@/data';
-import type { CapturedPhoto, GridLayout, FrameColor, StickerCategory, BorderStyle } from '@/types';
+import type { CapturedPhoto, GridLayout, FrameColor, StickerCategory, BorderStyle, VirtualBgOption } from '@/types';
+import VirtualBgPanel, { type ActiveBgId } from './VirtualBgPanel';
+import { processCapturedPhotos } from './postCaptureSegmenter';
 
 interface Props {
   capturedPhotos: CapturedPhoto[];
@@ -444,15 +446,52 @@ export default function ResultPanel({
   const [downloading, setDownloading] = useState(false);
   const [shape, setShape] = useState<string>(initialShape);
   const [borderThick, setBorderThick] = useState(initialBorderThick);
+  const [bgPanelOpen, setBgPanelOpen] = useState(false);
+  const [activeBgId, setActiveBgId] = useState<ActiveBgId>('none');
+  const [bgOption, setBgOption] = useState<VirtualBgOption>({ type: 'none' });
+  const [processedPhotos, setProcessedPhotos] = useState<CapturedPhoto[]>(capturedPhotos);
+  const [processingBg, setProcessingBg] = useState(false);
+  const [bgProgress, setBgProgress] = useState({ done: 0, total: capturedPhotos.length });
 
   // Group photos into sessions
   const chunks = useMemo(() => {
     const res = [];
-    for (let i = 0; i < capturedPhotos.length; i += selectedGrid.photoCount) {
-      res.push(capturedPhotos.slice(i, i + selectedGrid.photoCount));
+    for (let i = 0; i < processedPhotos.length; i += selectedGrid.photoCount) {
+      res.push(processedPhotos.slice(i, i + selectedGrid.photoCount));
     }
     return res;
-  }, [capturedPhotos, selectedGrid.photoCount]);
+  }, [processedPhotos, selectedGrid.photoCount]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function run() {
+      if (bgOption.type === 'none') {
+        setProcessedPhotos(capturedPhotos);
+        setProcessingBg(false);
+        setBgProgress({ done: capturedPhotos.length, total: capturedPhotos.length });
+        return;
+      }
+
+      setProcessingBg(true);
+      setBgProgress({ done: 0, total: capturedPhotos.length });
+
+      const next = await processCapturedPhotos(capturedPhotos, bgOption, (done, total) => {
+        if (!cancelled) setBgProgress({ done, total });
+      });
+
+      if (!cancelled) {
+        setProcessedPhotos(next);
+        setProcessingBg(false);
+      }
+    }
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [capturedPhotos, bgOption]);
 
   const [topIndex, setTopIndex] = useState(chunks.length > 0 ? chunks.length - 1 : 0);
   const collageRefs = useRef<Array<any>>([]);
@@ -493,6 +532,7 @@ export default function ResultPanel({
   }
 
   const downloadActive = async () => {
+    if (processingBg) return;
     const activeRef = collageRefs.current[topIndex];
     if (!activeRef) return;
     setDownloading(true);
@@ -507,6 +547,7 @@ export default function ResultPanel({
   };
 
   const downloadAll = async () => {
+    if (processingBg) return;
     setDownloading(true);
     for (let i = 0; i < chunks.length; i++) {
       const ref = collageRefs.current[i];
@@ -525,6 +566,12 @@ export default function ResultPanel({
   };
 
   const canvasAspect = CW / CH;
+
+  function handleSelectBg(id: ActiveBgId, option: VirtualBgOption) {
+    setActiveBgId(id);
+    setBgOption(option);
+    setBgPanelOpen(false);
+  }
 
   return (
     /* 
@@ -590,7 +637,7 @@ export default function ResultPanel({
             justifyContent: 'center',
             padding: '16px 12px 16px 16px',
             gap: 12,
-            background: 'var(--c-bg-2)',
+            background: 'linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%)',
             borderRight: '1px solid var(--c-border)',
             minWidth: 0,
           }}
@@ -622,22 +669,45 @@ export default function ResultPanel({
                 />
               ))}
             </FlipCardStack>
+
+            <div
+              style={{
+                position: 'absolute',
+                top: 10,
+                left: 10,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '4px 10px',
+                borderRadius: 999,
+                background: 'rgba(15, 23, 42, 0.78)',
+                color: '#fff',
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: '0.03em',
+                zIndex: 4,
+                backdropFilter: 'blur(3px)',
+              }}
+            >
+              <span>HASIL</span>
+              <span style={{ opacity: 0.8 }}>{Math.max(1, topIndex + 1)}/{Math.max(1, chunks.length)}</span>
+            </div>
           </div>
 
           <div style={{ display: 'flex', width: '100%', gap: 8, marginTop: 8 }}>
             <button
               onClick={downloadActive}
-              disabled={downloading}
+              disabled={downloading || processingBg}
               className="btn btn-ghost"
-              style={{ flex: 1, height: 44, fontSize: 13, gap: 6, fontWeight: 700, border: '1.5px solid var(--c-border-md)' }}
+              style={{ flex: 1, height: 44, fontSize: 13, gap: 6, fontWeight: 700, border: '1.5px solid var(--c-border-md)', background: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(2px)' }}
             >
               Download Yang Ini
             </button>
             <button
               onClick={downloadAll}
-              disabled={downloading}
+              disabled={downloading || processingBg}
               className="btn btn-primary"
-              style={{ flex: 1.5, height: 44, fontSize: 13, gap: 6 }}
+              style={{ flex: 1.5, height: 44, fontSize: 13, gap: 6, boxShadow: '0 8px 20px rgba(15,23,42,0.22)' }}
             >
               {downloading ? (
                 <>
@@ -658,6 +728,34 @@ export default function ResultPanel({
               )}
             </button>
           </div>
+
+          {processingBg && (
+            <div style={{
+              width: '100%',
+              padding: '10px 12px',
+              borderRadius: 10,
+              border: '1px solid var(--c-border-md)',
+              background: 'var(--c-surface)',
+              fontSize: 12,
+              fontWeight: 600,
+              color: 'var(--c-ink-2)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span>Memproses background foto...</span>
+                <span>{Math.min(bgProgress.done, bgProgress.total)} / {bgProgress.total}</span>
+              </div>
+              <div style={{ height: 8, borderRadius: 999, background: 'rgba(0,0,0,0.08)', overflow: 'hidden' }}>
+                <div
+                  style={{
+                    width: `${bgProgress.total > 0 ? (bgProgress.done / bgProgress.total) * 100 : 0}%`,
+                    height: '100%',
+                    background: 'var(--c-ink)',
+                    transition: 'width 0.18s ease',
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Kanan: Panel kontrol (bisa scroll sendiri) ── */}
@@ -665,6 +763,25 @@ export default function ResultPanel({
           className="no-scrollbar controls-col"
           style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '16px 16px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}
         >
+
+          <Sec label="Background Foto (AI)">
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setBgPanelOpen(true)}
+                className="btn btn-ghost"
+                style={{ height: 34, padding: '0 12px', fontSize: 12, border: '1.5px solid var(--c-border-md)' }}
+              >
+                Pilih Background
+              </button>
+              <span style={{ fontSize: 11, color: 'var(--c-ink-3)', fontWeight: 600 }}>
+                {activeBgId === 'none' ? 'Tanpa efek' : `Tema aktif: ${activeBgId}`}
+              </span>
+            </div>
+            <p style={{ marginTop: 8, fontSize: 11, color: 'var(--c-ink-4)' }}>
+              Optimasi mobile: foto diproses setelah capture untuk hasil edge lebih rapi dan stabil.
+            </p>
+          </Sec>
 
           {/* WARNA FRAME */}
           <Sec label="Warna Frame">
@@ -784,6 +901,22 @@ export default function ResultPanel({
         </div>
       </div>
 
+      {bgPanelOpen && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 120, display: 'flex' }}>
+          <div
+            onClick={() => setBgPanelOpen(false)}
+            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.18)' }}
+          />
+          <div className="panel-overlay-wrapper" style={{ zIndex: 121 }}>
+            <VirtualBgPanel
+              activeBgId={activeBgId}
+              onSelect={handleSelectBg}
+              onClose={() => setBgPanelOpen(false)}
+            />
+          </div>
+        </div>
+      )}
+
       <footer style={{ height: 20, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--c-surface)', borderTop: '1px solid var(--c-border)', fontSize: 11, color: 'var(--c-ink-3)', zIndex: 50, gap: 12, letterSpacing: '0.02em', fontWeight: 500 }}>
         <a href="https://www.ariefgunadi.my.id/" target="_blank" rel="noopener noreferrer" className="footer-link italic">By:AriefGunadi</a>
         <span style={{ color: 'var(--c-border-md)' }}> | </span>
@@ -801,12 +934,31 @@ export default function ResultPanel({
           .result-canvas-wrap { max-width: 100% !important; max-height: 48dvh !important; }
           .result-header { padding: 10px 12px !important; gap: 8px !important; }
           .orient-text { display: none !important; }
+          .panel-overlay-wrapper {
+            position: absolute; left: 0; right: 0; bottom: 0; top: auto; z-index: 9999;
+            width: 100%; border-radius: 20px 20px 0 0;
+            background: var(--c-surface);
+            box-shadow: 0 -4px 32px rgba(0,0,0,0.15);
+            max-height: 85vh; display: flex; flex-direction: column; overflow: hidden;
+          }
+          .panel-overlay-wrapper .popup-panel {
+            width: 100% !important; max-width: none !important;
+            border: none !important; box-shadow: none !important;
+            border-radius: 0 !important;
+            background: transparent !important;
+            flex: 1; overflow-y: auto; max-height: none !important;
+          }
         }
         @media (min-width: 768px) and (max-width: 1024px) {
           .canvas-col { width: 45vw !important; }
         }
         @media (min-width: 1025px) {
           .canvas-col { width: clamp(340px, 60%, 720px); }
+        }
+        @media (min-width: 768px) {
+          .panel-overlay-wrapper {
+            position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 121;
+          }
         }
       `}</style>
     </div>
@@ -816,7 +968,15 @@ export default function ResultPanel({
 /* ── Helper components ── */
 function Sec({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <section>
+    <section
+      style={{
+        border: '1px solid var(--c-border)',
+        borderRadius: 14,
+        padding: '12px',
+        background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+        boxShadow: '0 6px 16px rgba(15,23,42,0.05)',
+      }}
+    >
       <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--c-ink-3)', marginBottom: 10 }}>
         {label}
       </p>

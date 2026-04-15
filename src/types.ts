@@ -35,6 +35,12 @@ export type CapturedPhoto = {
   timestamp: number;
 };
 
+export type VirtualBgOption =
+  | { type: 'blur'; blurAmount: number }
+  | { type: 'color'; color: string }
+  | { type: 'image'; src: string }
+  | { type: 'none' };
+
 export type ActivePanel = 'grid' | 'filter' | 'glow' | null;
 
 export type StickerCategory = {

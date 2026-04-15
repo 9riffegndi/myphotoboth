@@ -12,7 +12,7 @@
  */
 
 import { useRef, useState } from 'react';
-import type { VirtualBgOption } from './VirtualBackground';
+import type { VirtualBgOption } from './types';
 
 /* ═══════════════════════════════════════════════
    PRESET BACKGROUNDS

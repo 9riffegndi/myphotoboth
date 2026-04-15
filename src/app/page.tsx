@@ -3,10 +3,8 @@
 /**
  * page.tsx — IntaraBox Photo Booth
  * Perubahan dari versi sebelumnya:
- *   ✅ Tambah fitur Virtual Background (VirtualBackground.tsx + VirtualBgPanel.tsx)
- *   ✅ Tombol "BG" di toolbar sidebar/mobile
- *   ✅ captureFrame() sekarang membaca dari canvas virtual bg jika aktif
- *   ✅ Preview dan hasil capture tidak mirror (orientasi konsisten)
+ *   ✅ Alur kamera ringan (tanpa virtual background realtime)
+ *   ✅ Virtual background diproses setelah foto diambil (di ResultPanel)
  */
 
 import { useRef, useState, useEffect, useCallback } from 'react';
@@ -18,10 +16,6 @@ import BersinarPanel from '@/BersinarPanel';
 import BingkaiPanel from '@/BingkaiPanel';
 import DekorasiPanel from '@/DekorasiPanel';
 import ResultPanel from '@/ResultPanel';
-
-// ← IMPORT BARU untuk Virtual Background
-import VirtualBackground, { type VirtualBgOption, type VirtualBgHandle } from '@/VirtualBackground';
-import VirtualBgPanel, { type ActiveBgId } from '@/VirtualBgPanel';
 
 function coverCrop(vW: number, vH: number, dW: number, dH: number): [number, number, number, number] {
   const vA = vW / vH, dA = dW / dH;
@@ -66,15 +60,6 @@ const IcoDekorasi = () => (
     <path d="M10 2L12.5 7.5L18 8L14 12L15 18L10 15.5L5 18L6 12L2 8L7.5 7.5L10 2Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
   </svg>
 );
-// ← IKON BARU: Virtual Background
-const IcoVirtualBg = () => (
-  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-    <rect x="1.5" y="3.5" width="17" height="13" rx="2.5" stroke="currentColor" strokeWidth="1.5" />
-    <circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.4" />
-    <path d="M1.5 14s2-3 4-3 3 3 4.5 3 3-2 4.5-2 4 2 4 2" stroke="currentColor" strokeWidth="1.2" opacity="0.45" strokeLinecap="round" />
-  </svg>
-);
-
 function StripThumbs({ photos, total }: { photos: CapturedPhoto[]; total: number }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center', padding: '0 8px' }}>
@@ -102,9 +87,9 @@ function StripThumbs({ photos, total }: { photos: CapturedPhoto[]; total: number
 }
 
 /* ═══════════════════════════════════════════════
-   PANEL TYPE (extended dengan 'virtualbg')
+  PANEL TYPE
 ═══════════════════════════════════════════════ */
-type PanelType = ActivePanel | 'bingkai' | 'dekorasi' | 'virtualbg';
+type PanelType = ActivePanel | 'bingkai' | 'dekorasi';
 
 /* ═══════════════════════════════════════════════
    MAIN PAGE
@@ -113,9 +98,6 @@ export default function PhotoBoothPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const flashRef = useRef<HTMLDivElement>(null);
-
-  // ← REF BARU: handle ke VirtualBackground canvas
-  const vbgRef = useRef<VirtualBgHandle>(null);
 
   const [grid, setGrid] = useState<GridLayout>(GRID_LAYOUTS[3]);
   const [filter, setFilter] = useState<FilterOption>(FILTER_OPTIONS[0]);
@@ -139,11 +121,6 @@ export default function PhotoBoothPage() {
   const [countVal, setCountVal] = useState<number | null>(null);
   const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
   const [phase, setPhase] = useState<'capture' | 'result'>('capture');
-
-  // ← STATE BARU: virtual background
-  const [activeBgId, setActiveBgId] = useState<ActiveBgId>('none');
-  const [bgOption, setBgOption] = useState<VirtualBgOption>({ type: 'none' });
-  const virtualBgEnabled = activeBgId !== 'none';
 
   /* ── Init kamera ── */
   useEffect(() => {
@@ -189,30 +166,15 @@ export default function PhotoBoothPage() {
     return () => root.style.setProperty('--glow-opacity', '0');
   }, [glow, glowInt]);
 
-  /* ── captureFrame: baca dari VirtualBackground canvas jika aktif ── */
+  /* ── captureFrame ── */
   const captureFrame = useCallback((): CapturedPhoto => {
     const W = 1280, H = 960;
 
-    // Jika virtual bg aktif → ambil dari canvas VirtualBackground
-    if (virtualBgEnabled && vbgRef.current) {
-      const rawDataUrl = vbgRef.current.captureFrame();
-      if (rawDataUrl) {
-        // Data URL dari canvas VirtualBackground sudah final dan sinkron,
-        // jadi hindari redraw via Image (rawan race onload -> frame hitam).
-        return {
-          id: `p${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          dataUrl: rawDataUrl,
-          filter: filter.cssFilter,
-          timestamp: Date.now(),
-        };
-      }
-    }
-
-    // Fallback: capture dari video biasa
     const video = videoRef.current!;
     const tmp = document.createElement('canvas');
     tmp.width = W; tmp.height = H;
     const ctx = tmp.getContext('2d')!;
+    // Koreksi mirror agar hasil capture konsisten non-mirror.
     ctx.translate(W, 0);
     ctx.scale(-1, 1);
     if (filter.cssFilter !== 'none') ctx.filter = filter.cssFilter;
@@ -224,7 +186,7 @@ export default function PhotoBoothPage() {
       filter: filter.cssFilter,
       timestamp: Date.now(),
     };
-  }, [filter, virtualBgEnabled]);
+  }, [filter]);
 
   const flash = () => {
     const el = flashRef.current;
@@ -258,20 +220,12 @@ export default function PhotoBoothPage() {
 
   const togglePanel = (p: PanelType) => setPanel(prev => prev === p ? null : p);
 
-  /* ── Handle pilih virtual bg ── */
-  function handleSelectBg(id: ActiveBgId, opt: VirtualBgOption) {
-    setActiveBgId(id);
-    setBgOption(opt);
-  }
-
   const tools = [
     { id: 'grid' as const,      icon: <IcoGrid />,      label: 'Kisi' },
     { id: 'filter' as const,    icon: <IcoFilter />,    label: 'Filter' },
     { id: 'glow' as const,      icon: <IcoGlow />,      label: 'Cahaya' },
     { id: 'bingkai' as const,   icon: <IcoBingkai />,   label: 'Bingkai' },
     { id: 'dekorasi' as const,  icon: <IcoDekorasi />,  label: 'Dekorasi' },
-    // ← TOOL BARU
-    { id: 'virtualbg' as const, icon: <IcoVirtualBg />, label: 'BG' },
   ];
 
   if (phase === 'result') {
@@ -349,19 +303,7 @@ export default function PhotoBoothPage() {
           ))}
         </div>
 
-        {/* Indikator virtual bg aktif */}
         <div className="header-right-spacer" style={{ width: 80, flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
-          {virtualBgEnabled && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 4,
-              padding: '3px 8px', borderRadius: 100,
-              background: 'var(--c-ink)', color: '#fff',
-              fontSize: 10, fontWeight: 700,
-            }}>
-              <span>🌄</span>
-              <span>BG ON</span>
-            </div>
-          )}
         </div>
       </header>
 
@@ -379,20 +321,11 @@ export default function PhotoBoothPage() {
                 key={t.id}
                 type="button"
                 onClick={() => togglePanel(t.id)}
-                className={`tool-item ${panel === t.id ? 'active' : ''} ${t.id === 'virtualbg' && virtualBgEnabled && panel !== 'virtualbg' ? 'tool-item-active-bg' : ''}`}
+                className={`tool-item ${panel === t.id ? 'active' : ''}`}
                 style={{ width: 64, height: 64, position: 'relative' }}
               >
                 {t.icon}
                 <span style={{ fontSize: 9 }}>{t.label}</span>
-                {/* Dot indikator jika BG aktif */}
-                {t.id === 'virtualbg' && virtualBgEnabled && (
-                  <span style={{
-                    position: 'absolute', top: 6, right: 6,
-                    width: 7, height: 7, borderRadius: '50%',
-                    background: '#22c55e',
-                    border: '1.5px solid var(--c-surface)',
-                  }} />
-                )}
               </button>
             ))}
           </div>
@@ -412,14 +345,6 @@ export default function PhotoBoothPage() {
               {panel === 'glow' && <BersinarPanel selectedGlowId={glow.id} glowIntensity={glowInt} onSelectColor={setGlow} onChangeIntensity={setGlowInt} onClose={() => setPanel(null)} />}
               {panel === 'bingkai' && <BingkaiPanel frame={frame} setFrame={setFrame} customFrame={customFrame} setCustomFrame={setCustomFrame} border={border} setBorder={setBorder} onClose={() => setPanel(null)} />}
               {panel === 'dekorasi' && <DekorasiPanel shape={shape} setShape={setShape} borderThick={borderThick} setBorderThick={setBorderThick} decorCat={decorCat} setDecorCat={setDecorCat} tileLevel={tileLevel} setTileLevel={setTileLevel} patOpacity={patOpacity} setPatOpacity={setPatOpacity} showCorners={showCorners} setShowCorners={setShowCorners} onClose={() => setPanel(null)} />}
-              {/* ← PANEL BARU */}
-              {panel === 'virtualbg' && (
-                <VirtualBgPanel
-                  activeBgId={activeBgId}
-                  onSelect={handleSelectBg}
-                  onClose={() => setPanel(null)}
-                />
-              )}
             </div>
           </div>
         )}
@@ -439,9 +364,6 @@ export default function PhotoBoothPage() {
               >
                 {t.icon}
                 <span style={{ fontSize: 9 }}>{t.label}</span>
-                {t.id === 'virtualbg' && virtualBgEnabled && (
-                  <span style={{ position: 'absolute', top: 5, right: 5, width: 7, height: 7, borderRadius: '50%', background: '#22c55e', border: '1.5px solid var(--c-surface)' }} />
-                )}
               </button>
             ))}
           </div>
@@ -498,17 +420,6 @@ export default function PhotoBoothPage() {
                 overflow: 'hidden', zIndex: 5
               }}>
 
-                {/*
-                  ═══════════════════════════════════════
-                  VIDEO + VIRTUAL BACKGROUND
-                  ─ Video selalu di-render agar MediaPipe
-                    punya source frame.
-                  ─ Saat virtualBgEnabled, sembunyikan
-                    video asli dan tampilkan canvas VB.
-                  ═══════════════════════════════════════
-                */}
-
-                {/* Video asli (hidden saat VB aktif) */}
                 <video
                   ref={videoRef}
                   autoPlay
@@ -521,25 +432,9 @@ export default function PhotoBoothPage() {
                     WebkitTransform: 'scaleX(-1)',
                     filter: filter.cssFilter !== 'none' ? filter.cssFilter : undefined,
                     clipPath: videoClipPath,
-                    // Sembunyikan video asli jika VB aktif (tetap dalam DOM untuk MediaPipe)
-                    opacity: virtualBgEnabled ? 0 : 1,
                     pointerEvents: 'none',
                   }}
                 />
-
-                {/* Virtual Background Canvas */}
-                {virtualBgEnabled && (
-                  <VirtualBackground
-                    ref={vbgRef}
-                    videoRef={videoRef}
-                    bgOption={bgOption}
-                    cssFilter={filter.cssFilter}
-                    style={{
-                      position: 'absolute', inset: 0,
-                      clipPath: videoClipPath,
-                    }}
-                  />
-                )}
               </div>
 
               {/* Flash Overlay */}
@@ -569,55 +464,10 @@ export default function PhotoBoothPage() {
               {/* Countdown */}
               {countVal !== null && <span key={countVal} className="countdown-digit">{countVal}</span>}
 
-              {/* Center disclaimer: UI overlay only (tidak ikut ke hasil capture) */}
-              {virtualBgEnabled && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: '50%',
-                    top: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    width: 'min(88%, 460px)',
-                    padding: 'clamp(8px, 1.8vw, 12px) clamp(10px, 2.3vw, 16px)',
-                    // borderRadius: 12,
-                    // background: 'linear-gradient(180deg, rgba(0,0,0,0.28), rgba(0,0,0,0.38))',
-                    // border: '1px solid rgba(255,255,255,0.25)',
-                    color: 'rgba(255,255,255,1)',
-                    textAlign: 'center',
-                    zIndex: 24,
-                    pointerEvents: 'none',
-                    // backdropFilter: 'blur(5px)',
-                    // WebkitBackdropFilter: 'blur(5px)',
-                    // boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
-                  }}
-                >
-                  <div style={{ fontSize: 'clamp(11px, 2.1vw, 13px)', fontWeight: 700, letterSpacing: '0.01em' }}>
-                    Best results with a plain background
-                  </div>
-                  <div style={{ marginTop: 3, fontSize: 'clamp(10px, 1.9vw, 12px)', fontWeight: 600, color: 'rgba(255,255,255,1)' }}>
-                    Hasil terbaik jika latar belakang polos
-                  </div>
-                </div>
-              )}
-
               {/* Progress pill */}
               {photos.length > 0 && photos.length < sessions * grid.photoCount && countVal === null && (
                 <div style={{ position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)', padding: '3px 12px', borderRadius: 100, background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: 11, fontWeight: 700, zIndex: 20 }}>
                   <span>{photos.length} / {sessions * grid.photoCount}</span>
-                </div>
-              )}
-
-              {/* Badge "Virtual BG Aktif" di dalam kamera */}
-              {virtualBgEnabled && (
-                <div style={{
-                  position: 'absolute', top: 10, left: 10,
-                  padding: '3px 8px', borderRadius: 100,
-                  background: 'rgba(0,0,0,0.55)', color: '#fff',
-                  fontSize: 10, fontWeight: 700, zIndex: 25,
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  backdropFilter: 'blur(4px)',
-                }}>
-                  🌄 Virtual BG
                 </div>
               )}
             </div>
@@ -695,7 +545,6 @@ export default function PhotoBoothPage() {
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         .footer-link { color: var(--c-ink-2); text-decoration: none; transition: color 0.15s; }
         .footer-link:hover { color: var(--c-ink); }
-        .tool-item-active-bg { background: rgba(34,197,94,0.12) !important; border-color: #22c55e !important; color: #16a34a !important; }
         @media (max-width: 767px) {
           .hide-mobile { display: none !important; }
           .show-mobile-flex { display: flex !important; }
