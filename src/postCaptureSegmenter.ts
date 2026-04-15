@@ -76,6 +76,167 @@ function blurMask(src: Float32Array, w: number, h: number, radius: number, passe
   return current;
 }
 
+function labelComponents(bin: Uint8Array, w: number, h: number): {
+  labels: Int32Array;
+  areas: number[];
+  touchesBorder: boolean[];
+  sumX: number[];
+  sumY: number[];
+} {
+  const labels = new Int32Array(w * h);
+  const areas: number[] = [0];
+  const touchesBorder: boolean[] = [false];
+  const sumX: number[] = [0];
+  const sumY: number[] = [0];
+  let currLabel = 0;
+
+  const qx = new Int32Array(w * h);
+  const qy = new Int32Array(w * h);
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = y * w + x;
+      if (bin[idx] === 0 || labels[idx] !== 0) continue;
+
+      currLabel++;
+      areas[currLabel] = 0;
+      touchesBorder[currLabel] = false;
+      sumX[currLabel] = 0;
+      sumY[currLabel] = 0;
+
+      let head = 0;
+      let tail = 0;
+      qx[tail] = x;
+      qy[tail] = y;
+      tail++;
+      labels[idx] = currLabel;
+
+      while (head < tail) {
+        const cx = qx[head];
+        const cy = qy[head];
+        head++;
+
+        const cidx = cy * w + cx;
+        areas[currLabel]++;
+        sumX[currLabel] += cx;
+        sumY[currLabel] += cy;
+        if (cx === 0 || cy === 0 || cx === w - 1 || cy === h - 1) {
+          touchesBorder[currLabel] = true;
+        }
+
+        if (cx > 0) {
+          const nidx = cidx - 1;
+          if (bin[nidx] === 1 && labels[nidx] === 0) {
+            labels[nidx] = currLabel;
+            qx[tail] = cx - 1;
+            qy[tail] = cy;
+            tail++;
+          }
+        }
+        if (cx < w - 1) {
+          const nidx = cidx + 1;
+          if (bin[nidx] === 1 && labels[nidx] === 0) {
+            labels[nidx] = currLabel;
+            qx[tail] = cx + 1;
+            qy[tail] = cy;
+            tail++;
+          }
+        }
+        if (cy > 0) {
+          const nidx = cidx - w;
+          if (bin[nidx] === 1 && labels[nidx] === 0) {
+            labels[nidx] = currLabel;
+            qx[tail] = cx;
+            qy[tail] = cy - 1;
+            tail++;
+          }
+        }
+        if (cy < h - 1) {
+          const nidx = cidx + w;
+          if (bin[nidx] === 1 && labels[nidx] === 0) {
+            labels[nidx] = currLabel;
+            qx[tail] = cx;
+            qy[tail] = cy + 1;
+            tail++;
+          }
+        }
+      }
+    }
+  }
+
+  return { labels, areas, touchesBorder, sumX, sumY };
+}
+
+function removeSpecklesAndFillHoles(alpha: Float32Array, w: number, h: number): Float32Array {
+  const total = w * h;
+  const fg = new Uint8Array(total);
+  for (let i = 0; i < total; i++) fg[i] = alpha[i] > 0.56 ? 1 : 0;
+
+  const fgComp = labelComponents(fg, w, h);
+  let largest = 0;
+  for (let i = 1; i < fgComp.areas.length; i++) {
+    if (fgComp.areas[i] > largest) largest = fgComp.areas[i];
+  }
+
+  if (largest <= 0) return alpha;
+
+  // Keep utama: komponen besar dan/atau paling dekat pusat frame.
+  const cx = (w - 1) / 2;
+  const cy = (h - 1) / 2;
+  const diag = Math.hypot(cx, cy);
+  const candidates: Array<{ label: number; score: number; area: number }> = [];
+
+  for (let lbl = 1; lbl < fgComp.areas.length; lbl++) {
+    const area = fgComp.areas[lbl];
+    if (area <= 0) continue;
+    const px = fgComp.sumX[lbl] / area;
+    const py = fgComp.sumY[lbl] / area;
+    const dist = Math.hypot(px - cx, py - cy) / Math.max(1e-6, diag);
+    const areaNorm = area / Math.max(1, largest);
+    const borderPenalty = fgComp.touchesBorder[lbl] ? 0.08 : 0;
+    const score = areaNorm + (1 - dist) * 0.35 - borderPenalty;
+    candidates.push({ label: lbl, score, area });
+  }
+
+  candidates.sort((a, b) => b.score - a.score);
+  const keepLabels = new Set<number>();
+  for (let i = 0; i < candidates.length; i++) {
+    const c = candidates[i];
+    const keepByArea = c.area >= Math.max(60, Math.floor(largest * 0.12));
+    const keepTopSecondary = i < 2 && c.area >= Math.max(36, Math.floor(largest * 0.06));
+    if (keepByArea || keepTopSecondary) keepLabels.add(c.label);
+  }
+
+  if (keepLabels.size === 0) {
+    keepLabels.add(candidates[0].label);
+  }
+
+  for (let i = 0; i < total; i++) {
+    const lbl = fgComp.labels[i];
+    if (lbl === 0) continue;
+    if (!keepLabels.has(lbl)) fg[i] = 0;
+  }
+
+  const bg = new Uint8Array(total);
+  for (let i = 0; i < total; i++) bg[i] = fg[i] === 1 ? 0 : 1;
+
+  const bgComp = labelComponents(bg, w, h);
+  const maxHole = Math.max(22, Math.floor(total * 0.0012));
+  for (let i = 0; i < total; i++) {
+    const lbl = bgComp.labels[i];
+    if (lbl === 0) continue;
+    const hole = !bgComp.touchesBorder[lbl] && bgComp.areas[lbl] <= maxHole;
+    if (hole) fg[i] = 1;
+  }
+
+  const cleaned = new Float32Array(total);
+  for (let i = 0; i < total; i++) {
+    if (fg[i] === 1) cleaned[i] = Math.max(alpha[i], 0.62);
+    else cleaned[i] = Math.min(alpha[i], 0.02);
+  }
+  return cleaned;
+}
+
 function refineMask(
   confData: Float32Array,
   catData: Uint8Array | null,
@@ -89,7 +250,7 @@ function refineMask(
     if (catData) {
       const cat = catData[i] ?? 0;
       // Jangan terlalu menekan background label agar subjek tidak hilang.
-      if (cat === 0) v *= 0.9;
+      if (cat === 0) v *= 0.78;
       else v = Math.min(1, v * 1.04 + 0.01);
     }
     alpha[i] = softStep(v, COVERAGE_LOW, COVERAGE_HIGH);
@@ -124,6 +285,9 @@ function refineMask(
     }
     smoothed = filled;
   }
+
+  smoothed = removeSpecklesAndFillHoles(smoothed, maskW, maskH);
+  smoothed = blurMask(smoothed, maskW, maskH, 1, 1);
 
   for (let i = 0; i < smoothed.length; i++) {
     if (smoothed[i] < 0.06) smoothed[i] = 0;
