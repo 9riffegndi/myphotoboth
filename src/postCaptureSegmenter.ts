@@ -11,6 +11,17 @@ const COVERAGE_HIGH = 0.72;
 
 let segmenterPromise: Promise<ImageSegmenter> | null = null;
 
+function getInferMaxSide(): number {
+  const nav = navigator as Navigator & { deviceMemory?: number };
+  const lowMemory = typeof nav.deviceMemory === 'number' && nav.deviceMemory <= 4;
+  const lowCpu = typeof nav.hardwareConcurrency === 'number' && nav.hardwareConcurrency <= 4;
+  const ua = navigator.userAgent.toLowerCase();
+  const isMobile = /android|iphone|ipad|ipod|mobile/.test(ua);
+
+  if (isMobile || lowMemory || lowCpu) return 640;
+  return 896;
+}
+
 function createCanvas(w: number, h: number): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = w;
@@ -309,15 +320,27 @@ async function getSegmenter(): Promise<ImageSegmenter> {
   if (!segmenterPromise) {
     segmenterPromise = (async () => {
       const vision = await FilesetResolver.forVisionTasks(TASKS_WASM_PATH);
-      return ImageSegmenter.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: SEGMENTER_MODEL_PATH,
-          delegate: 'GPU',
-        },
-        runningMode: 'IMAGE',
-        outputConfidenceMasks: true,
-        outputCategoryMask: true,
-      });
+      try {
+        return await ImageSegmenter.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: SEGMENTER_MODEL_PATH,
+            delegate: 'GPU',
+          },
+          runningMode: 'IMAGE',
+          outputConfidenceMasks: true,
+          outputCategoryMask: true,
+        });
+      } catch {
+        return ImageSegmenter.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: SEGMENTER_MODEL_PATH,
+            delegate: 'CPU',
+          },
+          runningMode: 'IMAGE',
+          outputConfidenceMasks: true,
+          outputCategoryMask: true,
+        });
+      }
     })().catch((err) => {
       segmenterPromise = null;
       throw err;
@@ -409,7 +432,20 @@ async function processOne(photo: CapturedPhoto, option: VirtualBgOption): Promis
     if (!personCtx) return photo;
     personCtx.drawImage(sourceCanvas, 0, 0, w, h);
 
-    const result = segmenter.segment(sourceCanvas);
+    const inferMax = getInferMaxSide();
+    const longSide = Math.max(w, h);
+    const scale = Math.min(1, inferMax / Math.max(1, longSide));
+    const inferW = Math.max(256, Math.round(w * scale));
+    const inferH = Math.max(256, Math.round(h * scale));
+
+    const inferCanvas = createCanvas(inferW, inferH);
+    const inferCtx = inferCanvas.getContext('2d');
+    if (!inferCtx) return photo;
+    inferCtx.imageSmoothingEnabled = true;
+    inferCtx.imageSmoothingQuality = 'high';
+    inferCtx.drawImage(sourceCanvas, 0, 0, inferW, inferH);
+
+    const result = segmenter.segment(inferCanvas);
     const confidence = result.confidenceMasks?.[0];
     if (!confidence) {
       result.close();

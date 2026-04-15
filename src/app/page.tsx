@@ -125,19 +125,58 @@ export default function PhotoBoothPage() {
   /* ── Init kamera ── */
   useEffect(() => {
     let alive = true;
-    navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
-      .then((s) => {
-        if (!alive) { s.getTracks().forEach(t => t.stop()); return; }
-        streamRef.current = s;
-        const vid = videoRef.current;
-        if (vid) {
-          vid.srcObject = s;
-          vid.play().catch(() => { });
-          vid.onloadedmetadata = () => { if (alive) setCamReady(true); };
+
+    async function initCamera() {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        if (alive) setCamErr('Browser ini tidak mendukung akses kamera.');
+        return;
+      }
+
+      const tries: MediaStreamConstraints[] = [
+        { video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } }, audio: false },
+        { video: { facingMode: 'user' }, audio: false },
+        { video: true, audio: false },
+      ];
+
+      let stream: MediaStream | null = null;
+      for (const c of tries) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(c);
+          break;
+        } catch {
+          // Coba constraint berikutnya untuk perangkat mobile yang lebih ketat.
         }
-      })
-      .catch(() => { if (alive) setCamErr('Kamera tidak dapat diakses. Izinkan akses kamera di browser.'); });
+      }
+
+      if (!stream) {
+        if (alive) setCamErr('Kamera tidak dapat diakses. Gunakan HTTPS dan izinkan akses kamera di browser.');
+        return;
+      }
+
+      if (!alive) {
+        stream.getTracks().forEach(t => t.stop());
+        return;
+      }
+
+      streamRef.current = stream;
+      const vid = videoRef.current;
+      if (!vid) return;
+
+      vid.setAttribute('playsinline', 'true');
+      vid.setAttribute('autoplay', 'true');
+      vid.muted = true;
+      vid.srcObject = stream;
+
+      const markReady = () => { if (alive) setCamReady(true); };
+      vid.onloadedmetadata = markReady;
+      vid.onloadeddata = markReady;
+      vid.play().catch(() => {
+        // iOS kadang menunda autoplay sampai metadata siap; status ready tetap ditangani event di atas.
+      });
+    }
+
+    initCamera();
+
     return () => {
       alive = false;
       streamRef.current?.getTracks().forEach(t => t.stop());
