@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { FlipCardStack } from './FlipCard';
-import { FRAME_COLORS, BORDER_STYLES, STICKER_CATEGORIES } from '@/data';
-import type { CapturedPhoto, GridLayout, FrameColor, StickerCategory, BorderStyle, VirtualBgOption } from '@/types';
+import { FRAME_COLORS, BORDER_STYLES, STICKER_CATEGORIES, FILTER_OPTIONS } from '@/data';
+import type { CapturedPhoto, GridLayout, FrameColor, StickerCategory, BorderStyle, VirtualBgOption, FilterOption } from '@/types';
 import VirtualBgPanel, { type ActiveBgId } from './VirtualBgPanel';
 import { processCapturedPhotos } from './postCaptureSegmenter';
 
@@ -311,6 +311,7 @@ function getTileStep(level: number, minDim: number): number {
 ═══════════════════════════════════════════════ */
 interface CollageProps {
   photos: CapturedPhoto[];
+  previewFilterCss: string;
   frame: FrameColor;
   customFrameHex: string;
   border: BorderStyle;
@@ -327,7 +328,7 @@ interface CollageProps {
   currentSlots: any[];
 }
 
-export const CollageCanvas = forwardRef(({ photos, frame, customFrameHex, border, decorCat, tileLevel, patOpacity, showCorners, shape, borderThick, CW, CH, currentCols, currentRows, currentSlots }: CollageProps, ref) => {
+export const CollageCanvas = forwardRef(({ photos, previewFilterCss, frame, customFrameHex, border, decorCat, tileLevel, patOpacity, showCorners, shape, borderThick, CW, CH, currentCols, currentRows, currentSlots }: CollageProps, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useImperativeHandle(ref, () => ({
@@ -388,7 +389,8 @@ export const CollageCanvas = forwardRef(({ photos, frame, customFrameHex, border
       const h = rowSpan * cellH + (rowSpan - 1) * GAP;
 
       const img = await loadImg(photo.dataUrl);
-      if (img) drawCover(ctx, img, x, y, w, h, photo.filter, border.photoRadius * (refDim / 1000), shape);
+      const combinedFilter = [photo.filter, previewFilterCss].filter(f => f && f !== 'none').join(' ').trim() || 'none';
+      if (img) drawCover(ctx, img, x, y, w, h, combinedFilter, border.photoRadius * (refDim / 1000), shape);
     }
 
     // 4. Polaroid label
@@ -414,7 +416,7 @@ export const CollageCanvas = forwardRef(({ photos, frame, customFrameHex, border
     ctx.textBaseline = 'bottom';
     const wmPad = Math.max(8, Math.round(refDim * 0.015));
     ctx.fillText("", CW - wmPad, CH - wmPad); //kasih watermark disini 
-  }, [photos, frame, customFrameHex, border, decorCat, tileLevel, patOpacity, showCorners, shape, borderThick, CW, CH, refDim, currentCols, currentRows, currentSlots]);
+  }, [photos, previewFilterCss, frame, customFrameHex, border, decorCat, tileLevel, patOpacity, showCorners, shape, borderThick, CW, CH, refDim, currentCols, currentRows, currentSlots]);
 
   useEffect(() => { drawCanvas(); }, [drawCanvas]);
 
@@ -449,6 +451,7 @@ export default function ResultPanel({
   const [bgPanelOpen, setBgPanelOpen] = useState(false);
   const [activeBgId, setActiveBgId] = useState<ActiveBgId>('none');
   const [bgOption, setBgOption] = useState<VirtualBgOption>({ type: 'none' });
+  const [resultFilter, setResultFilter] = useState<FilterOption>(FILTER_OPTIONS[0]);
   const [processedPhotos, setProcessedPhotos] = useState<CapturedPhoto[]>(capturedPhotos);
   const [processingBg, setProcessingBg] = useState(false);
   const [bgProgress, setBgProgress] = useState({ done: 0, total: capturedPhotos.length });
@@ -661,6 +664,7 @@ export default function ResultPanel({
                   key={i}
                   ref={el => { collageRefs.current[i] = el; }}
                   photos={chk}
+                  previewFilterCss={resultFilter.cssFilter}
                   CW={CW} CH={CH}
                   currentCols={currentCols} currentRows={currentRows} currentSlots={currentSlots}
                   frame={frame} customFrameHex={customFrameHex} border={border} decorCat={decorCat}
@@ -780,6 +784,19 @@ export default function ResultPanel({
             </div>
             <p style={{ marginTop: 8, fontSize: 11, color: 'var(--c-ink-4)' }}>
               Optimasi mobile: foto diproses setelah capture untuk hasil edge lebih rapi dan stabil.
+            </p>
+          </Sec>
+
+          <Sec label="Filter Hasil">
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {FILTER_OPTIONS.map(f => (
+                <Chip key={f.id} active={resultFilter.id === f.id} onClick={() => setResultFilter(f)}>
+                  {f.name}
+                </Chip>
+              ))}
+            </div>
+            <p style={{ marginTop: 8, fontSize: 11, color: 'var(--c-ink-4)' }}>
+              Filter langsung terlihat di preview hasil.
             </p>
           </Sec>
 

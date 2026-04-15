@@ -19,9 +19,17 @@ import type { VirtualBgOption } from './types';
    Letakkan gambar di /public/bg-virtual/
 ═══════════════════════════════════════════════ */
 export const VIRTUAL_BG_PRESETS: { id: string; label: string; src: string; thumb?: string }[] = [
-  { id: 'cafe1',     label: 'Café 1',       src: '/bg-virtual/cafe1.jpeg' },
-  { id: 'cafe2',     label: 'Café 2',       src: '/bg-virtual/cafe2.jpeg' },
-  // Tambahkan preset lain jika file sudah tersedia di public/bg-virtual
+  { id: 'bg-1',  label: 'Tema 1',  src: '/bg-virtual/1.jpeg' },
+  { id: 'bg-2',  label: 'Tema 2',  src: '/bg-virtual/2.jpeg' },
+  { id: 'bg-3',  label: 'Tema 3',  src: '/bg-virtual/3.jpeg' },
+  { id: 'bg-4',  label: 'Tema 4',  src: '/bg-virtual/4.jpeg' },
+  { id: 'bg-5',  label: 'Tema 5',  src: '/bg-virtual/5.jpeg' },
+  { id: 'bg-6',  label: 'Tema 6',  src: '/bg-virtual/6.jpeg' },
+  { id: 'bg-7',  label: 'Tema 7',  src: '/bg-virtual/7.jpeg' },
+  { id: 'bg-8',  label: 'Tema 8',  src: '/bg-virtual/8.jpeg' },
+  { id: 'bg-9',  label: 'Tema 9',  src: '/bg-virtual/9.jpeg' },
+  { id: 'bg-10', label: 'Tema 10', src: '/bg-virtual/10.jpeg' },
+  { id: 'bg-11', label: 'Tema 11', src: '/bg-virtual/11.jpeg' },
 ];
 
 const SOLID_COLORS = [
