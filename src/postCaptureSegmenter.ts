@@ -10,6 +10,14 @@ const COVERAGE_LOW = 0.28;
 const COVERAGE_HIGH = 0.72;
 
 let segmenterPromise: Promise<ImageSegmenter> | null = null;
+let legacySelfiePromise: Promise<any> | null = null;
+
+type SegmentMaskResult = {
+  confData: Float32Array;
+  catData: Uint8Array | null;
+  maskW: number;
+  maskH: number;
+};
 
 function getInferMaxSide(): number {
   const nav = navigator as Navigator & { deviceMemory?: number };
@@ -27,6 +35,44 @@ function createCanvas(w: number, h: number): HTMLCanvasElement {
   c.width = w;
   c.height = h;
   return c;
+}
+
+function waitWithTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const id = window.setTimeout(() => reject(new Error('timeout')), ms);
+    p.then((v) => {
+      window.clearTimeout(id);
+      resolve(v);
+    }).catch((e) => {
+      window.clearTimeout(id);
+      reject(e);
+    });
+  });
+}
+
+function ensureScript(src: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const found = Array.from(document.scripts).find((s) => s.src === src);
+    if (found) {
+      if ((found as any).dataset.loaded === '1') {
+        resolve();
+      } else {
+        found.addEventListener('load', () => resolve(), { once: true });
+        found.addEventListener('error', () => reject(new Error('script load failed')), { once: true });
+      }
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = true;
+    script.onload = () => {
+      (script as any).dataset.loaded = '1';
+      resolve();
+    };
+    script.onerror = () => reject(new Error('script load failed'));
+    document.head.appendChild(script);
+  });
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -350,6 +396,113 @@ async function getSegmenter(): Promise<ImageSegmenter> {
   return segmenterPromise;
 }
 
+async function getLegacySelfieSegmenter(): Promise<any> {
+  if (!legacySelfiePromise) {
+    legacySelfiePromise = (async () => {
+      const scriptUrl = 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js';
+      await ensureScript(scriptUrl);
+
+      const Ctor = (window as any).SelfieSegmentation;
+      if (!Ctor) throw new Error('SelfieSegmentation not found on window');
+
+      const seg = new Ctor({
+        locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`,
+      });
+      seg.setOptions({ modelSelection: 1 });
+      return seg;
+    })().catch((err) => {
+      legacySelfiePromise = null;
+      throw err;
+    });
+  }
+
+  return legacySelfiePromise;
+}
+
+async function segmentWithTasks(segmenter: ImageSegmenter, sourceCanvas: HTMLCanvasElement): Promise<SegmentMaskResult | null> {
+  const w = sourceCanvas.width;
+  const h = sourceCanvas.height;
+
+  const inferMax = getInferMaxSide();
+  const longSide = Math.max(w, h);
+  const scale = Math.min(1, inferMax / Math.max(1, longSide));
+  const inferW = Math.max(256, Math.round(w * scale));
+  const inferH = Math.max(256, Math.round(h * scale));
+
+  const inferCanvas = createCanvas(inferW, inferH);
+  const inferCtx = inferCanvas.getContext('2d');
+  if (!inferCtx) return null;
+  inferCtx.imageSmoothingEnabled = true;
+  inferCtx.imageSmoothingQuality = 'high';
+  inferCtx.drawImage(sourceCanvas, 0, 0, inferW, inferH);
+
+  const result = segmenter.segment(inferCanvas);
+  const confidence = result.confidenceMasks?.[0];
+  if (!confidence) {
+    result.close();
+    return null;
+  }
+
+  const category = result.categoryMask;
+  const out: SegmentMaskResult = {
+    confData: confidence.getAsFloat32Array(),
+    catData: category ? category.getAsUint8Array() : null,
+    maskW: confidence.width,
+    maskH: confidence.height,
+  };
+  result.close();
+  return out;
+}
+
+async function segmentWithLegacySelfie(sourceCanvas: HTMLCanvasElement): Promise<SegmentMaskResult | null> {
+  const seg = await waitWithTimeout(getLegacySelfieSegmenter(), 10000);
+
+  const inferMax = Math.min(640, getInferMaxSide());
+  const w = sourceCanvas.width;
+  const h = sourceCanvas.height;
+  const scale = Math.min(1, inferMax / Math.max(w, h));
+  const inferW = Math.max(224, Math.round(w * scale));
+  const inferH = Math.max(224, Math.round(h * scale));
+
+  const inferCanvas = createCanvas(inferW, inferH);
+  const inferCtx = inferCanvas.getContext('2d');
+  if (!inferCtx) return null;
+  inferCtx.imageSmoothingEnabled = true;
+  inferCtx.imageSmoothingQuality = 'high';
+  inferCtx.drawImage(sourceCanvas, 0, 0, inferW, inferH);
+
+  const result = await waitWithTimeout(new Promise<any>((resolve, reject) => {
+    try {
+      seg.onResults((r: any) => resolve(r));
+      seg.send({ image: inferCanvas }).catch((e: any) => reject(e));
+    } catch (e) {
+      reject(e);
+    }
+  }), 12000);
+
+  if (!result?.segmentationMask) return null;
+
+  const maskCanvas = createCanvas(inferW, inferH);
+  const maskCtx = maskCanvas.getContext('2d');
+  if (!maskCtx) return null;
+  maskCtx.drawImage(result.segmentationMask, 0, 0, inferW, inferH);
+  const img = maskCtx.getImageData(0, 0, inferW, inferH);
+  const confData = new Float32Array(inferW * inferH);
+
+  for (let i = 0; i < confData.length; i++) {
+    const p = i * 4;
+    const luma = (img.data[p] * 0.299 + img.data[p + 1] * 0.587 + img.data[p + 2] * 0.114) / 255;
+    confData[i] = Math.max(0, Math.min(1, luma));
+  }
+
+  return {
+    confData,
+    catData: null,
+    maskW: inferW,
+    maskH: inferH,
+  };
+}
+
 function drawBackground(
   ctx: CanvasRenderingContext2D,
   option: VirtualBgOption,
@@ -445,23 +598,28 @@ async function processOne(photo: CapturedPhoto, option: VirtualBgOption): Promis
     inferCtx.imageSmoothingQuality = 'high';
     inferCtx.drawImage(sourceCanvas, 0, 0, inferW, inferH);
 
-    const result = segmenter.segment(inferCanvas);
-    const confidence = result.confidenceMasks?.[0];
-    if (!confidence) {
-      result.close();
-      return photo;
+    let segMask: SegmentMaskResult | null = null;
+    try {
+      segMask = await segmentWithTasks(segmenter, sourceCanvas);
+    } catch {
+      segMask = null;
     }
 
-    const category = result.categoryMask;
-    const confData = confidence.getAsFloat32Array();
-    const catData = category ? category.getAsUint8Array() : null;
-    const maskW = confidence.width;
-    const maskH = confidence.height;
+    if (!segMask) {
+      try {
+        segMask = await segmentWithLegacySelfie(sourceCanvas);
+      } catch {
+        segMask = null;
+      }
+    }
+
+    if (!segMask) return photo;
+
+    const { confData, catData, maskW, maskH } = segMask;
 
     const maskCanvas = createCanvas(maskW, maskH);
     const maskCtx = maskCanvas.getContext('2d');
     if (!maskCtx) {
-      result.close();
       return photo;
     }
 
@@ -488,7 +646,6 @@ async function processOne(photo: CapturedPhoto, option: VirtualBgOption): Promis
     const featherCanvas = createCanvas(w, h);
     const featherCtx = featherCanvas.getContext('2d');
     if (!featherCtx) {
-      result.close();
       return photo;
     }
     featherCtx.imageSmoothingEnabled = true;
@@ -504,13 +661,10 @@ async function processOne(photo: CapturedPhoto, option: VirtualBgOption): Promis
     const outCanvas = createCanvas(w, h);
     const outCtx = outCanvas.getContext('2d');
     if (!outCtx) {
-      result.close();
       return photo;
     }
     outCtx.drawImage(bgCanvas, 0, 0, w, h);
     outCtx.drawImage(personCanvas, 0, 0, w, h);
-
-    result.close();
 
     return {
       ...photo,
