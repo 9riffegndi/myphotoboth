@@ -95,6 +95,10 @@ type PanelType = ActivePanel | 'bingkai' | 'dekorasi';
    MAIN PAGE
 ═══════════════════════════════════════════════ */
 export default function PhotoBoothPage() {
+  const ZOOM_MIN = 0.6;
+  const ZOOM_MAX = 2.5;
+  const ZOOM_STEP = 0.1;
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const flashRef = useRef<HTMLDivElement>(null);
@@ -121,6 +125,12 @@ export default function PhotoBoothPage() {
   const [countVal, setCountVal] = useState<number | null>(null);
   const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
   const [phase, setPhase] = useState<'capture' | 'result'>('capture');
+  const [zoom, setZoom] = useState(1);
+
+  const changeZoom = useCallback((next: number) => {
+    const safe = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Number(next.toFixed(2))));
+    setZoom(safe);
+  }, [ZOOM_MAX, ZOOM_MIN]);
 
   /* ── Init kamera ── */
   useEffect(() => {
@@ -225,7 +235,11 @@ export default function PhotoBoothPage() {
     ctx.translate(W, 0);
     ctx.scale(-1, 1);
     if (filter.cssFilter !== 'none') ctx.filter = filter.cssFilter;
-    const [sx, sy, sw, sh] = coverCrop(video.videoWidth, video.videoHeight, W, H);
+    const [baseSx, baseSy, baseSw, baseSh] = coverCrop(video.videoWidth, video.videoHeight, W, H);
+    const sw = baseSw / zoom;
+    const sh = baseSh / zoom;
+    const sx = baseSx + (baseSw - sw) / 2;
+    const sy = baseSy + (baseSh - sh) / 2;
     ctx.drawImage(video, sx, sy, sw, sh, 0, 0, W, H);
     return {
       id: `p${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -233,7 +247,7 @@ export default function PhotoBoothPage() {
       filter: 'none',
       timestamp: Date.now(),
     };
-  }, [filter]);
+  }, [filter, zoom]);
 
   const flash = () => {
     const el = flashRef.current;
@@ -475,13 +489,91 @@ export default function PhotoBoothPage() {
                   style={{
                     position: 'absolute', inset: 0, width: '100%', height: '100%',
                     objectFit: 'cover',
-                    transform: 'scaleX(-1)',
-                    WebkitTransform: 'scaleX(-1)',
+                    transform: `scaleX(-1) scale(${zoom})`,
+                    WebkitTransform: `scaleX(-1) scale(${zoom})`,
+                    transformOrigin: 'center center',
                     filter: filter.cssFilter !== 'none' ? filter.cssFilter : undefined,
                     clipPath: videoClipPath,
                     pointerEvents: 'none',
                   }}
                 />
+              </div>
+
+              {/* Zoom controls */}
+              <div style={{
+                position: 'absolute',
+                top: 12,
+                right: 12,
+                zIndex: 26,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 8px',
+                borderRadius: 12,
+                background: 'rgba(0,0,0,0.55)',
+                backdropFilter: 'blur(4px)',
+                WebkitBackdropFilter: 'blur(4px)',
+              }}>
+                <button
+                  type="button"
+                  onClick={() => changeZoom(zoom - ZOOM_STEP)}
+                  disabled={zoom <= ZOOM_MIN}
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: 8,
+                    border: '1px solid rgba(255,255,255,0.25)',
+                    background: 'rgba(255,255,255,0.12)',
+                    color: '#fff',
+                    fontSize: 16,
+                    lineHeight: '24px',
+                    cursor: 'pointer',
+                    opacity: zoom <= ZOOM_MIN ? 0.45 : 1,
+                  }}
+                >
+                  -
+                </button>
+
+                <input
+                  type="range"
+                  min={ZOOM_MIN}
+                  max={ZOOM_MAX}
+                  step={ZOOM_STEP}
+                  value={zoom}
+                  onChange={(e) => changeZoom(Number(e.target.value))}
+                  style={{ width: 92, accentColor: '#fff' }}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => changeZoom(zoom + ZOOM_STEP)}
+                  disabled={zoom >= ZOOM_MAX}
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: 8,
+                    border: '1px solid rgba(255,255,255,0.25)',
+                    background: 'rgba(255,255,255,0.12)',
+                    color: '#fff',
+                    fontSize: 16,
+                    lineHeight: '24px',
+                    cursor: 'pointer',
+                    opacity: zoom >= ZOOM_MAX ? 0.45 : 1,
+                  }}
+                >
+                  +
+                </button>
+
+                <span style={{
+                  minWidth: 44,
+                  textAlign: 'right',
+                  color: '#fff',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: '0.02em',
+                }}>
+                  {zoom.toFixed(1)}x
+                </span>
               </div>
 
               {/* Flash Overlay */}
