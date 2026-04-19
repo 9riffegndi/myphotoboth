@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# IntaraBox Photo Booth
 
-## Getting Started
+Aplikasi photo booth berbasis web yang dibangun dengan Next.js 16 dan React 19. Fokus pada fungsionalitas pengambilan foto langsung di browser dengan integrasi pemrosesan background otomatis.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Fitur Utama
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **Kamera & Kontrol**:
+  - Zoom kamera (0.6x - 2.5x).
+  - Countdown timer (3s, 5s, 10s) dengan efek flash.
+  - Pengambilan foto dalam beberapa sesi sekaligus.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Pemrosesan Gambar (MediaPipe)**:
+  - Penghapusan dan penggantian background secara otomatis.
+  - Pemrosesan dilakukan setelah pengambilan foto untuk menjaga performa di perangkat mobile.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Kustomisasi Layout & Frame**:
+  - Berbagai pilihan grid layout.
+  - Bentuk frame beragam: Oval, Heart, Hexagon, Ticket, Star, Diamond, dan Arch.
+  - Dekorasi tambahan seperti pola tiling dan stiker di sudut frame.
+  - Pilihan gaya bingkai (Polaroid, Minimal, dsb) dengan warna yang bisa diatur.
 
-## Learn More
+- **Antarmuka Pengguna**:
+  - Animasi transisi antar panel menggunakan Framer Motion.
+  - Responsif untuk desktop maupun perangkat mobile.
+  - Preview hasil foto dalam bentuk tumpukan kartu interaktif.
 
-To learn more about Next.js, take a look at the following resources:
+- **Ekspor Hasil**:
+  - Unduh hasil foto dalam format PNG berkualitas tinggi.
+  - Pilihan untuk mengunduh satu hasil tertentu atau semua hasil sekaligus.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Teknologi yang Digunakan
 
-## Deploy on Vercel
+- **Framework**: [Next.js 16](https://nextjs.org/)
+- **Library**: [React 19](https://react.dev/)
+- **Animasi**: [Framer Motion](https://www.framer.com/motion/)
+- **AI/ML**: [MediaPipe Tasks Vision](https://developers.google.com/mediapipe)
+- **Styling**: [Tailwind CSS 4](https://tailwindcss.com/)
+- **Bahasa**: [TypeScript](https://www.typescriptlang.org/)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Cara Menjalankan
+
+1. Clone repositori:
+   ```bash
+   git clone https://github.com/9riffegndi/myphotoboth.git
+   ```
+
+2. Instal dependensi:
+   ```bash
+   npm install
+   ```
+
+3. Jalankan server pengembangan:
+   ```bash
+   npm run dev
+   ```
+
+4. Akses `http://localhost:3000` melalui browser.
+
+---
+
+## Pembuat
+- **Website**: [ariefgunadi.my.id](https://www.ariefgunadi.my.id/)
+- **GitHub**: [@9riffegndi](https://github.com/9riffegndi)
+
+---
+
+## Lisensi
+
+Proyek ini menggunakan lisensi [MIT](LICENSE).
