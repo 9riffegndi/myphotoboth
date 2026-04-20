@@ -32,7 +32,11 @@ function FilterThumb({
       const vid = videoRef.current;
       if (vid && vid.readyState >= 2 && vid.videoWidth > 0) {
         ctx.save();
-        if (filter.cssFilter !== 'none') ctx.filter = filter.cssFilter;
+        const isFilterSupported = 'filter' in ctx;
+        if (isFilterSupported) {
+          if (filter.cssFilter !== 'none') ctx.filter = filter.cssFilter;
+        }
+        
         // cover crop square
         const vW = vid.videoWidth, vH = vid.videoHeight;
         const cS = canvas.width;
@@ -40,6 +44,16 @@ function FilterThumb({
         const sx = (vW - vMin) / 2, sy = (vH - vMin) / 2;
         ctx.drawImage(vid, sx, sy, vMin, vMin, 0, 0, cS, cS);
         ctx.restore();
+
+        // Fallback for browsers that don't support Canvas filter
+        if (!isFilterSupported) {
+          const fStyle = filter.cssFilter !== 'none' ? filter.cssFilter : '';
+          canvas.style.filter = fStyle;
+          canvas.style.webkitFilter = fStyle;
+        } else {
+          canvas.style.filter = '';
+          canvas.style.webkitFilter = '';
+        }
       } else {
         ctx.fillStyle = '#d1d1cf';
         ctx.fillRect(0, 0, canvas.width, canvas.height);

@@ -161,7 +161,9 @@ function drawCover(
     drawW = dw; drawH = dw / imgA;
     drawX = dx; drawY = dy - (drawH - dh) / 2;
   }
-  if (cssFilter && cssFilter !== 'none') ctx.filter = cssFilter;
+  if (cssFilter && cssFilter !== 'none' && 'filter' in ctx) {
+    ctx.filter = cssFilter;
+  }
   ctx.drawImage(img, drawX, drawY, drawW, drawH);
   ctx.restore();
 }
@@ -420,9 +422,24 @@ export const CollageCanvas = forwardRef(({ photos, previewFilterCss, frame, cust
 
   useEffect(() => { drawCanvas(); }, [drawCanvas]);
 
+  const isFilterSupported = typeof window !== 'undefined' && 'filter' in (document.createElement('canvas').getContext('2d') || {});
+  const canvasFilterStyle = (!isFilterSupported && previewFilterCss && previewFilterCss !== 'none') ? previewFilterCss : undefined;
+
   return (
     <div style={{ width: '100%', height: '100%', backgroundColor: 'transparent', borderRadius: 0, overflow: 'visible', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <canvas ref={canvasRef} width={CW} height={CH} style={{ display: 'block', maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+      <canvas
+        ref={canvasRef}
+        width={CW}
+        height={CH}
+        style={{
+          display: 'block',
+          maxWidth: '100%',
+          maxHeight: '100%',
+          objectFit: 'contain',
+          filter: canvasFilterStyle,
+          WebkitFilter: canvasFilterStyle,
+        }}
+      />
     </div>
   );
 });

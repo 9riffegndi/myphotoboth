@@ -489,12 +489,14 @@ export default function PhotoBoothPage() {
                   style={{
                     position: 'absolute', inset: 0, width: '100%', height: '100%',
                     objectFit: 'cover',
-                    transform: `scaleX(-1) scale(${zoom})`,
-                    WebkitTransform: `scaleX(-1) scale(${zoom})`,
+                    transform: `scaleX(-1) scale(${zoom}) translateZ(0)`,
+                    WebkitTransform: `scaleX(-1) scale(${zoom}) translateZ(0)`,
                     transformOrigin: 'center center',
                     filter: filter.cssFilter !== 'none' ? filter.cssFilter : undefined,
+                    WebkitFilter: filter.cssFilter !== 'none' ? filter.cssFilter : undefined,
                     clipPath: videoClipPath,
                     pointerEvents: 'none',
+                    willChange: 'filter, transform',
                   }}
                 />
               </div>
